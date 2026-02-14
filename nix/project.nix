@@ -1,4 +1,4 @@
-{ indexState, pkgs, mkdocs, ... }:
+{ CHaP, indexState, pkgs, mkdocs, ... }:
 
 let
   shell = { pkgs, ... }: {
@@ -25,6 +25,7 @@ let
     src = ./..;
     compiler-nix-name = "ghc9122";
     shell = shell { inherit pkgs; };
+    inputMap = { "https://chap.intersectmbo.org/" = CHaP; };
     modules = [
       ({ lib, pkgs, ... }: {
         packages.cardano-crypto-praos.components.library.pkgconfig =
