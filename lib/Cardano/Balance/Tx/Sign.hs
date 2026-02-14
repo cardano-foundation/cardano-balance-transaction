@@ -59,7 +59,7 @@ import Cardano.Ledger.State
 import Cardano.Ledger.Tools
     ( addDummyWitsTx
     )
-import Cardano.Wallet.Primitive.Types.Tx.Constraints
+import Cardano.Balance.Tx.Primitive
     ( TxSize (..)
     )
 import Control.Lens
@@ -110,10 +110,10 @@ import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
 import qualified Cardano.Ledger.Api.Tx.Cert as Conway
 import qualified Cardano.Ledger.Shelley.TxCert as Shelley
-import qualified Cardano.Wallet.Primitive.Ledger.Convert as Convert
-import qualified Cardano.Wallet.Primitive.Types.Tx.Constraints as W
+import qualified Cardano.Balance.Tx.Primitive as W
     ( TxSize (..)
     )
+import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Data.Foldable as F
 import qualified Data.List as L
 import qualified Data.Map as Map

@@ -87,7 +87,7 @@ import Cardano.CoinSelection.Size
 import Cardano.CoinSelection.UTxOSelection
     ( UTxOSelection
     )
-import Cardano.Wallet.Primitive.Collateral
+import Cardano.Balance.Tx.Primitive
     ( asCollateral
     )
 import Control.Arrow
@@ -156,48 +156,9 @@ import qualified Cardano.CoinSelection.Types.TokenPolicyId as CS
 import qualified Cardano.CoinSelection.Types.TokenQuantity as CS
     ( TokenQuantity (..)
     )
-import qualified Cardano.Wallet.Primitive.Types.Address as W
-    ( Address (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.AssetId as W
-    ( AssetId (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.AssetName as W
-    ( AssetName (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Coin as W
-    ( Coin (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Hash as W
-    ( Hash (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W
-    ( TokenBundle (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W.TokenBundle
-import qualified Cardano.Wallet.Primitive.Types.TokenMap as W
-    ( TokenMap
-    )
-import qualified Cardano.Wallet.Primitive.Types.TokenMap as W.TokenMap
-import qualified Cardano.Wallet.Primitive.Types.TokenPolicyId as W
-    ( TokenPolicyId (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.TokenQuantity as W
-    ( TokenQuantity (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.Constraints as W
-    ( txOutMaxCoin
-    , txOutMaxTokenQuantity
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxIn as W
-    ( TxIn (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxOut as W
-    ( TxOut (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.UTxO as W
-    ( UTxO (..)
-    )
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive as W.TokenBundle
+import qualified Cardano.Balance.Tx.Primitive as W.TokenMap
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 

@@ -239,10 +239,8 @@ import qualified Cardano.Ledger.Mary.Value as Value
 import qualified Cardano.Ledger.Plutus.Data as Alonzo
 import qualified Cardano.Ledger.Shelley.UTxO as Shelley
 import qualified Cardano.Ledger.TxIn as Ledger
-import qualified Cardano.Wallet.Primitive.Ledger.Convert as Convert
-import qualified Cardano.Wallet.Primitive.Types.Tx.Constraints as W
-    ( txOutMaxCoin
-    )
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Data.Map as Map
 
 --------------------------------------------------------------------------------
@@ -428,7 +426,7 @@ computeMinimumCoinForTxOut pp out =
         :: TxOut era
         -> TxOut era
     withMaxLengthSerializedCoin =
-        over coinTxOutL (const $ Convert.toLedger W.txOutMaxCoin)
+        over coinTxOutL (const $ Convert.toLedgerCoin W.txOutMaxCoin)
 
 isBelowMinimumCoinForTxOut
     :: forall era

@@ -2,6 +2,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- |
 -- Copyright: © 2024 Cardano Foundation
@@ -18,15 +20,6 @@ module Cardano.Balance.Tx.TxWithUTxO.Gen
     )
 where
 
-import Cardano.Ledger.Api
-    ( EraTx (bodyTxL)
-    )
-import Cardano.Ledger.Api.Tx.Body
-    ( allInputsTxBodyF
-    )
-import Control.Lens
-    ( view
-    )
 import Cardano.Balance.Tx.Eras
     ( IsRecentEra
     )
@@ -40,18 +33,33 @@ import Cardano.Balance.Tx.TxWithUTxO
     ( pattern TxWithUTxO
     , type TxWithUTxO
     )
-import Test.QuickCheck
-    ( Gen
-    , frequency
+import Cardano.Ledger.Api
+    ( EraTx (bodyTxL)
     )
-import Test.QuickCheck.Extra
-    ( genMapFromKeysWith
-    , genNonEmptyDisjointMap
-    , interleaveRoundRobin
+import Cardano.Ledger.Api.Tx.Body
+    ( allInputsTxBodyF
+    )
+import Control.Lens
+    ( view
+    )
+import Control.Monad
+    ( replicateM
+    )
+import Data.List
+    ( transpose
     )
 import Prelude
+import Test.QuickCheck
+    ( Gen
+    , Positive (..)
+    , arbitrary
+    , frequency
+    , suchThat
+    )
 
 import qualified Cardano.Balance.Tx.TxWithUTxO as TxWithUTxO
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 -- | Generates a 'TxWithUTxO' object.
 --
@@ -125,3 +133,27 @@ shrinkUTxOWith
     -> (TxWithUTxO era -> [TxWithUTxO era])
 shrinkUTxOWith shrinkUTxO (TxWithUTxO tx utxo) =
     [TxWithUTxO.constructFiltered tx utxo' | utxo' <- shrinkUTxO utxo]
+
+--------------------------------------------------------------------------------
+-- Inlined from Test.QuickCheck.Extra (cardano-wallet-test-utils)
+--------------------------------------------------------------------------------
+
+interleaveRoundRobin :: [[a]] -> [a]
+interleaveRoundRobin = concat . transpose
+
+genMapFromKeysWith :: Ord k => Gen v -> Set.Set k -> Gen (Map.Map k v)
+genMapFromKeysWith genValue =
+    fmap Map.fromList . mapM (\k -> (k,) <$> genValue) . Set.toList
+
+genNonEmptyDisjointMap
+    :: Ord k => Gen k -> Gen v -> Map.Map k v -> Gen (Map.Map k v)
+genNonEmptyDisjointMap genKey genValue existingMap =
+    genMapFromKeysWith genValue
+        =<< genNonEmptyDisjointSet genKey (Map.keysSet existingMap)
+
+genNonEmptyDisjointSet :: Ord a => Gen a -> Set.Set a -> Gen (Set.Set a)
+genNonEmptyDisjointSet genElement0 existingElements = do
+    size <- getPositive <$> arbitrary @(Positive Int)
+    Set.fromList <$> replicateM size genElement
+  where
+    genElement = genElement0 `suchThat` (`Set.notMember` existingElements)

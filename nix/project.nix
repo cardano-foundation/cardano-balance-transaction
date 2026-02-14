@@ -25,6 +25,15 @@ let
     src = ./..;
     compiler-nix-name = "ghc9122";
     shell = shell { inherit pkgs; };
+    modules = [
+      ({ lib, pkgs, ... }: {
+        packages.cardano-crypto-praos.components.library.pkgconfig =
+          lib.mkForce [ [ pkgs.libsodium-vrf pkgs.secp256k1 ] ];
+        packages.cardano-crypto-class.components.library.pkgconfig =
+          lib.mkForce
+          [ [ pkgs.libsodium-vrf pkgs.secp256k1 pkgs.libblst ] ];
+      })
+    ];
   };
 
   project = pkgs.haskell-nix.cabalProject' mkProject;
@@ -33,6 +42,7 @@ in {
   devShells.default = project.shell;
   inherit project;
   packages.lib = project.hsPkgs.cardano-balance-tx.components.library;
-  packages.unit-tests =
-    project.hsPkgs.cardano-balance-tx.components.tests.unit;
+  # TODO: Re-enable after test suite is restored
+  # packages.unit-tests =
+  #   project.hsPkgs.cardano-balance-tx.components.tests.unit;
 }

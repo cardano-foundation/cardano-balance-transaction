@@ -39,13 +39,8 @@ import Cardano.Balance.Tx.Balance.CoinSelection
     )
 import Prelude
 
-import qualified Cardano.Wallet.Primitive.Ledger.Convert as Convert
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W
-    ( TokenBundle
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.Constraints as W
-    ( TxSize (..)
-    )
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Data.ByteString.Lazy as BL
 
 -- | Assesses a token bundle size in relation to the maximum size that can be
@@ -72,7 +67,7 @@ computeTokenBundleSerializedLengthBytes
     :: W.TokenBundle
     -> Version
     -> W.TxSize
-computeTokenBundleSerializedLengthBytes tb ver = serSize (Convert.toLedger tb)
+computeTokenBundleSerializedLengthBytes tb ver = serSize (Convert.toLedgerTokenBundle tb)
   where
     serSize :: Value -> W.TxSize
     serSize v =
