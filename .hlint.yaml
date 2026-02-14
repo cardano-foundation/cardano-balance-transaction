@@ -1,0 +1,4 @@
+- arguments:
+    - --no-exit-code
+- ignore: {name: "Use camelCase"}
+- ignore: {name: "Redundant bracket"}

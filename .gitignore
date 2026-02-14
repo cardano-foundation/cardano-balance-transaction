@@ -1,0 +1,21 @@
+# Haskell
+dist-newstyle/
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+cabal.project.local
+cabal.project.local~
+
+# Nix
+result
+result-*
+
+# LLM investigation notes (local only)
+.llm/
+
+# Editor
+*~
+.*.swp
+.vscode/
+site/

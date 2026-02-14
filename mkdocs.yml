@@ -1,0 +1,12 @@
+site_name: cardano-balance-tx
+site_description: Balancing transactions for the Cardano blockchain
+repo_url: https://github.com/cardano-foundation/cardano-balance-transaction
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: blue
+    accent: light blue
+nav:
+  - Home: index.md
+  - Plan: plan.md

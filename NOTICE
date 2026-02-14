@@ -1,0 +1,29 @@
+cardano-balance-tx
+
+Copyright 2018-2022 IOHK
+Copyright 2023-2026 Cardano Foundation
+
+This product includes software developed at IOHK
+(https://iohk.io/) as part of the cardano-wallet project
+(https://github.com/cardano-foundation/cardano-wallet).
+
+Original authors and contributors
+----------------------------------
+
+The transaction balancing algorithm was designed and implemented
+primarily by:
+
+  Jonathan Knowles          — balance algorithm, surplus distribution,
+                              size estimation, coin selection integration
+  Matthias Benkort (KtorZ)  — transaction balancing design
+  Pawel Jakubas             — transaction balancing
+
+With contributions from:
+
+  Heinrich Apfelmus         — transaction balancing
+  Johannes Lund (Anviking)  — early transaction construction
+  Yura (Unisay)             — transaction balancing
+
+Forked and maintained by:
+
+  Paolo Veronelli           — Cardano Foundation (High Assurance Lab)
