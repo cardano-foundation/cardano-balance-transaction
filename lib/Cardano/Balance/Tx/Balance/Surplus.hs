@@ -35,10 +35,8 @@ import Cardano.Balance.Tx.Tx
     )
 import Prelude
 
-import qualified Cardano.Wallet.Primitive.Types.Coin as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.Constraints as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxOut as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxOut as W.TxOut
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive as W.TxOut
 
 -- | Indicates that it's impossible for 'distributeSurplus' to distribute a
 -- surplus. As long as the surplus is larger than 'costOfIncreasingCoin', this

@@ -9,15 +9,25 @@
     haskellNix.url = "github:input-output-hk/haskell.nix";
     nixpkgs.follows = "haskellNix/nixpkgs-unstable";
     flake-utils.url = "github:hamishmack/flake-utils/hkm/nested-hydraJobs";
+    iohkNix = {
+      url = "github:input-output-hk/iohk-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     mkdocs.url = "github:paolino/dev-assets?dir=mkdocs";
   };
 
-  outputs = inputs@{ self, nixpkgs, flake-utils, haskellNix, mkdocs, ... }:
+  outputs =
+    inputs@{ self, nixpkgs, flake-utils, haskellNix, iohkNix, mkdocs, ... }:
     let version = self.dirtyShortRev or self.shortRev;
     in flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system:
       let
         pkgs = import nixpkgs {
-          overlays = [ haskellNix.overlay ];
+          overlays = [
+            iohkNix.overlays.crypto
+            haskellNix.overlay
+            iohkNix.overlays.haskell-nix-extra
+            iohkNix.overlays.haskell-nix-crypto
+          ];
           inherit system;
         };
         project = import ./nix/project.nix {

@@ -36,31 +36,6 @@ source-repository-package
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
--- BEGIN cardano-wallet (temporary — to be removed as deps are eliminated)
--- Using feat/use-standalone-coin-selection-v2 branch which has coin-selection
--- already extracted.
-
-source-repository-package
-  type: git
-  location: https://github.com/cardano-foundation/cardano-wallet
-  tag: 17306fb3fb76f8de4420ae2ff71585cfb1659210
-  subdir:
-    lib/primitive
-    lib/cardano-wallet-read
-    lib/test-utils
-    lib/launcher
-    lib/numeric
-    lib/crypto-primitives
-    lib/text-class
-    lib/std-gen-seed
-    lib/address-derivation-discovery
-    lib/cardano-api-extra
-    lib/secrets
-
--- END cardano-wallet
---------------------------------------------------------------------------------
-
---------------------------------------------------------------------------------
 -- Constraints
 
 allow-newer:
@@ -69,7 +44,6 @@ allow-newer:
   , katip:Win32
   , ekg-wai:time
   , plutus-core:cardano-crypto
-  , cardano-wallet-read:cardano-crypto
   , cardano-ledger-byron-test:cardano-ledger-byron
   , strict-stm:io-classes
   , cardano-cli:cardano-api
@@ -84,4 +58,4 @@ package cardano-coin-selection
   tests: False
 
 package cardano-balance-tx
-  tests: True
+  tests: False

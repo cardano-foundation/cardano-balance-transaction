@@ -280,43 +280,15 @@ import qualified Cardano.Ledger.Core as Core
 import qualified Cardano.Ledger.Val as Val
     ( coin
     )
-import qualified Cardano.Wallet.Primitive.Ledger.Convert as Convert
-import qualified Cardano.Wallet.Primitive.Types.Address as W
-    ( Address
-    )
-import qualified Cardano.Wallet.Primitive.Types.AssetId as W
-    ( AssetId (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Coin as W
-    ( Coin (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Coin as W.Coin
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W
-    ( TokenBundle (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W.TokenBundle
-import qualified Cardano.Wallet.Primitive.Types.TokenMap as W.TokenMap
-import qualified Cardano.Wallet.Primitive.Types.TokenQuantity as W
-    ( TokenQuantity (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.Constraints as W
-    ( TxSize (..)
-    , txOutMaxCoin
-    , txOutMaxTokenQuantity
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxIn as W
-    ( TxIn
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxOut as W
-    ( TxOut (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.UTxO as W
-    ( UTxO (..)
-    )
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive as W.Coin
+import qualified Cardano.Balance.Tx.Primitive as W.TokenBundle
+import qualified Cardano.Balance.Tx.Primitive as W.TokenMap
+import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Data.Foldable as F
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
-import qualified Data.Map.Strict.Extra as Map
+import qualified Data.Map.Merge.Strict as Map.Merge
 import qualified Data.Sequence.Strict as StrictSeq
 import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NESet
@@ -539,14 +511,15 @@ fromWalletUTxO = case recentEra :: RecentEra era of
     RecentEraBabbage -> Convert.toLedgerUTxOBabbage
     RecentEraConway -> Convert.toLedgerUTxOConway
 
+
 toWalletUTxO
     :: forall era
      . IsRecentEra era
     => UTxO era
     -> W.UTxO
 toWalletUTxO = case recentEra :: RecentEra era of
-    RecentEraBabbage -> Convert.toWalletUTxOBabbage
-    RecentEraConway -> Convert.toWalletUTxOConway
+    RecentEraBabbage -> Convert.fromLedgerUTxOBabbage
+    RecentEraConway -> Convert.fromLedgerUTxOConway
 
 balanceTx
     :: forall era m changeState
@@ -643,7 +616,7 @@ balanceTx
           where
             convertUTxO :: (TxIn, TxOut era) -> (WalletUTxO, CS.TokenBundle)
             convertUTxO (i, o) =
-                (WalletUTxO (Convert.toWallet i) addr, toCSTokenBundle bundle)
+                (WalletUTxO (Convert.fromLedgerTxIn i) addr, toCSTokenBundle bundle)
               where
                 W.TxOut addr bundle = toWalletTxOut o
             maybeUnresolvedTxIns :: Maybe (NESet TxIn)
@@ -698,7 +671,17 @@ balanceTx
                 Nothing -> return ()
           where
             conflicts :: UTxO era -> UTxO era -> Map TxIn (TxOut era, TxOut era)
-            conflicts = Map.conflictsWith ((/=) `on` toWalletTxOut) `on` unUTxO
+            conflicts = conflictsWith ((/=) `on` toWalletTxOut) `on` unUTxO
+
+            conflictsWith f =
+                Map.Merge.merge
+                    Map.Merge.dropMissing
+                    Map.Merge.dropMissing
+                    (Map.Merge.zipWithMaybeMatched
+                        (\_ v1 v2 ->
+                            if f v1 v2 then Just (v1, v2) else Nothing
+                        )
+                    )
 
         guardRefundsResolvable :: ExceptT (ErrBalanceTx era) m ()
         guardRefundsResolvable = case stakeKeyDeposits of
@@ -833,7 +816,7 @@ balanceTxInner
                     redeemers
                     utxoSelection
                     balance0
-                    (Convert.toWalletCoin minfee0)
+                    (Convert.fromLedgerCoin minfee0)
                     genChange
                     selectionStrategy
                     changeState
@@ -872,7 +855,7 @@ balanceTxInner
                         , extraCollateral
                         , extraOutputs
                         , extraInputScripts
-                        , feeUpdate = UseNewTxFee $ Convert.toWalletCoin minfee0
+                        , feeUpdate = UseNewTxFee $ Convert.fromLedgerCoin minfee0
                         }
 
             (balance, candidateMinFee, witCount) <-
@@ -891,7 +874,7 @@ balanceTxInner
 
             let feeAndChange =
                     TxFeeAndChange
-                        (Convert.toWalletCoin candidateMinFee)
+                        (Convert.fromLedgerCoin candidateMinFee)
                         (extraOutputs)
                 feePerByte = getFeePerByte pp
 
@@ -962,7 +945,7 @@ balanceTxInner
                         tx
                         timelockKeyWitnessCounts
                 minfee =
-                    Convert.toWalletCoin
+                    Convert.fromLedgerCoin
                         $ estimateSignedTxMinFee pp utxoReference tx witCount
                 update =
                     TxUpdate
@@ -1056,7 +1039,7 @@ selectAssets
                 { tokenBundleSizeAssessor =
                     mkTokenBundleSizeAssessor pp
                 , computeMinimumAdaQuantity = \addr tokens ->
-                    Convert.toWallet
+                    Convert.fromLedgerCoin
                         $ computeMinimumCoinForTxOut
                             pp
                             (mkLedgerTxOut addr (W.TokenBundle W.txOutMaxCoin tokens))
@@ -1084,7 +1067,7 @@ selectAssets
                 , minimumCollateralPercentage =
                     pp ^. ppCollateralPercentageL
                 , maximumLengthChangeAddress =
-                    Convert.toWalletAddress changeGen.maxLengthChangeAddress
+                    Convert.fromLedgerAddress changeGen.maxLengthChangeAddress
                 }
 
         selectionParams =
@@ -1128,7 +1111,7 @@ selectAssets
             txOut = W.TxOut address bundle
 
         txPlutusScriptExecutionCost =
-            Convert.toWallet @W.Coin
+            Convert.fromLedgerCoin
                 $ if null redeemers
                     then mempty
                     else maxScriptExecutionCost pp
@@ -1152,7 +1135,7 @@ selectAssets
                     }
 
         feePadding =
-            Convert.toWallet . feeOfBytes feePerByte
+            Convert.fromLedgerCoin . feeOfBytes feePerByte
                 $ extraBytes + scriptIntegrityHashBytes
           where
             -- Could be made smarter by only padding for the script
@@ -1239,7 +1222,7 @@ assignChangeAddresses
 assignChangeAddresses (ChangeAddressGen genChange _) sel = runState $ do
     changeOuts <- forM (view #change sel) $ \bundle -> do
         addr <- state genChange
-        pure $ W.TxOut (Convert.toWalletAddress addr) bundle
+        pure $ W.TxOut (Convert.fromLedgerAddress addr) bundle
     pure $ set #change changeOuts sel
 
 unsafeIntCast
@@ -1253,14 +1236,14 @@ unsafeIntCast x = fromMaybe err $ intCastMaybe x
 mergeSignedValue :: (W.TokenBundle, W.TokenBundle) -> Value
 mergeSignedValue (bNegative, bPositive) = vNegative <> vPositive
   where
-    vNegative = Convert.toLedger bNegative & invert
-    vPositive = Convert.toLedger bPositive
+    vNegative = Convert.toLedgerTokenBundle bNegative & invert
+    vPositive = Convert.toLedgerTokenBundle bPositive
 
 splitSignedValue :: Value -> (W.TokenBundle, W.TokenBundle)
 splitSignedValue v = (bNegative, bPositive)
   where
-    bNegative = Convert.toWallet . filterPositive $ invert v
-    bPositive = Convert.toWallet . filterPositive $ v
+    bNegative = Convert.fromLedgerTokenBundle . filterPositive $ invert v
+    bPositive = Convert.fromLedgerTokenBundle . filterPositive $ v
 
     filterPositive :: Value -> Value
     filterPositive (MaryValue (Coin a) (MultiAsset m)) =
@@ -1389,11 +1372,11 @@ modifyShelleyTxBody txUpdate =
     era = recentEra @era
     TxUpdate{extraInputs, extraCollateral, extraOutputs, feeUpdate} = txUpdate
     extraOutputs' = StrictSeq.fromList $ map (toLedgerTxOut era) extraOutputs
-    extraInputs' = Set.map Convert.toLedger extraInputs
-    extraCollateral' = Set.map Convert.toLedger extraCollateral
+    extraInputs' = Set.map Convert.toLedgerTxIn extraInputs
+    extraCollateral' = Set.map Convert.toLedgerTxIn extraCollateral
 
     modifyFee old = case feeUpdate of
-        UseNewTxFee c -> Convert.toLedger c
+        UseNewTxFee c -> Convert.toLedgerCoin c
         UseOldTxFee -> old
 
 toLedgerTxOut
@@ -1423,13 +1406,13 @@ coinSelectionErrorToBalanceTxError = \case
                 ErrBalanceTxAssetsInsufficient
                     $ ErrBalanceTxAssetsInsufficientError
                         { available =
-                            Convert.toLedger
+                            Convert.toLedgerTokenBundle
                                 $ fromCSTokenBundle (view #utxoBalanceAvailable e)
                         , required =
-                            Convert.toLedger
+                            Convert.toLedgerTokenBundle
                                 $ fromCSTokenBundle (view #utxoBalanceRequired e)
                         , shortfall =
-                            Convert.toLedger
+                            Convert.toLedgerTokenBundle
                                 $ fromCSTokenBundle (view #utxoBalanceShortfall e)
                         }
             UnableToConstructChange
@@ -1538,7 +1521,7 @@ validateTxOutputSize cs out@(address, bundle) = case sizeAssessment of
     TokenBundleSizeExceedsLimit ->
         Just
             $ ErrBalanceTxOutputSizeExceedsLimit
-                (Convert.toLedger address, Convert.toLedger bundle)
+                (Convert.toLedgerAddress address, Convert.toLedgerTokenBundle bundle)
   where
     sizeAssessment :: TokenBundleSizeAssessment
     sizeAssessment =
@@ -1563,7 +1546,7 @@ validateTxOutputTokenQuantities out =
     | let address = Convert.toLedgerAddress $ fst out
     , (W.AssetId p a, W.TokenQuantity quantity) <-
         W.TokenMap.toFlatList $ (snd out) ^. #tokens
-    , let (policyId, assetName) = (Convert.toLedger p, Convert.toLedger a)
+    , let (policyId, assetName) = (Convert.toLedgerPolicyId p, Convert.toLedgerAssetName a)
     , quantity > quantityMaxBound
     ]
   where
@@ -1582,7 +1565,7 @@ validateTxOutputAdaQuantity constraints output@(address, bundle)
         Just
             ErrBalanceTxOutputAdaQuantityInsufficient
                 { minimumExpectedCoin
-                , output = (Convert.toLedger address, Convert.toLedger bundle)
+                , output = (Convert.toLedgerAddress address, Convert.toLedgerTokenBundle bundle)
                 }
     | otherwise =
         Nothing

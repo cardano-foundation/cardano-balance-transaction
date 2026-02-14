@@ -69,22 +69,11 @@ import Numeric.Natural
 import Prelude
 
 import qualified Cardano.Address.Script as CA
-import qualified Cardano.Wallet.Primitive.Types.Address as W
-    ( Address (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.AssetId as W
-    ( AssetId (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.AssetName as W
-import qualified Cardano.Wallet.Primitive.Types.Coin as W
-    ( Coin (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Coin as W.Coin
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W.TokenBundle
-import qualified Cardano.Wallet.Primitive.Types.Tx.Constraints as W
-    ( TxSize (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxOut as W
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive as W.Coin
+import qualified Cardano.Balance.Tx.Primitive as W.TokenBundle
+import qualified Cardano.CoinSelection.Types.TokenBundle as CS.TokenBundle
+import qualified Cardano.CoinSelection.Types.TokenMap as CS.TokenMap
 import qualified Codec.CBOR.Encoding as CBOR
 import qualified Codec.CBOR.Write as CBOR
 import qualified Data.ByteString as BS
