@@ -14,10 +14,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     mkdocs.url = "github:paolino/dev-assets?dir=mkdocs";
+    CHaP = {
+      url = "github:intersectmbo/cardano-haskell-packages?ref=repo";
+      flake = false;
+    };
   };
 
   outputs =
-    inputs@{ self, nixpkgs, flake-utils, haskellNix, iohkNix, mkdocs, ... }:
+    inputs@{ self, nixpkgs, flake-utils, haskellNix, iohkNix, mkdocs, CHaP, ... }:
     let version = self.dirtyShortRev or self.shortRev;
     in flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system:
       let
@@ -32,7 +36,7 @@
         };
         project = import ./nix/project.nix {
           indexState = "2025-10-01T00:00:00Z";
-          inherit pkgs;
+          inherit pkgs CHaP;
           mkdocs = mkdocs.packages.${system};
         };
       in {
