@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/cardano-foundation/cardano-balance-transaction/actions/workflows/ci.yml/badge.svg)](https://github.com/cardano-foundation/cardano-balance-transaction/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://cardano-foundation.github.io/cardano-balance-transaction/)
 
 Standalone Cardano transaction balancing library, extracted from
 [cardano-wallet](https://github.com/cardano-foundation/cardano-wallet).
@@ -89,6 +90,11 @@ stabilizes.
 
 - Babbage
 - Conway
+
+## Documentation
+
+Full documentation is available at
+<https://cardano-foundation.github.io/cardano-balance-transaction/>.
 
 ## Key dependencies
 
