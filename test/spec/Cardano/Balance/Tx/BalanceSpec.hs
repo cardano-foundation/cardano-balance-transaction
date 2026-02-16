@@ -38,6 +38,13 @@ import Cardano.Binary
     , serialize'
     , unsafeDeserialize'
     )
+import Cardano.Chain.Common
+    ( AddrAttributes (..)
+    , Attributes (..)
+    , NetworkMagic (..)
+    , mkAttributes
+    )
+import qualified Cardano.Chain.Common as Chain
 import Cardano.Ledger.Alonzo.Plutus.TxInfo
     ( AlonzoContextError (..)
     )
@@ -46,7 +53,7 @@ import Cardano.Ledger.Api
     , AlonzoEraTxBody (..)
     , EraTx (witsTxL)
     , EraTxBody (..)
-    , EraTxWits (bootAddrTxWitsL, scriptTxWitsL)
+    , EraTxWits (addrTxWitsL, bootAddrTxWitsL, scriptTxWitsL)
     , MaryEraTxBody (..)
     , ShelleyEraTxBody (..)
     , TransactionScriptFailure (..)
@@ -73,11 +80,19 @@ import Cardano.Ledger.Babbage.TxInfo
 import Cardano.Ledger.BaseTypes
     ( unsafeNonZero
     )
+import Cardano.Ledger.Binary
+    ( byronProtVer
+    , decodeFull
+    )
 import Cardano.Ledger.Conway.TxInfo
     ( ConwayContextError (..)
     )
 import Cardano.Ledger.Core
     ( Era
+    )
+import Cardano.Ledger.Keys.Bootstrap
+    ( BootstrapWitness
+    , makeBootstrapWitness
     )
 import Cardano.Ledger.Shelley.API
     ( Credential (..)
@@ -141,6 +156,9 @@ import Cardano.Balance.Tx.Sign
     , estimateKeyWitnessCounts
     , estimateSignedTxMinFee
     , estimateSignedTxSize
+    )
+import Cardano.Balance.Tx.SizeEstimation
+    ( sizeOf_BootstrapWitnesses
     )
 import Cardano.Balance.Tx.TimeTranslation
     ( TimeTranslation
@@ -256,6 +274,10 @@ import Data.Time.Clock.POSIX
     )
 import Data.Tuple
     ( swap
+    )
+import Data.Word
+    ( Word32
+    , Word8
     )
 import Fmt
     ( Buildable (..)
@@ -384,6 +406,7 @@ import Prelude
 
 import qualified Cardano.Address as CA
 import qualified Cardano.Address.Derivation as CA
+import qualified Cardano.Address.Style.Byron as Byron
 import qualified Cardano.Address.Style.Shelley as Shelley
 import qualified Cardano.Api as CardanoApi
 import qualified Cardano.Api.Gen as CardanoApi
@@ -395,6 +418,8 @@ import qualified Cardano.Balance.Tx.Tx as Write
 import qualified Cardano.Balance.Tx.TxWithUTxO as TxWithUTxO
 import qualified Cardano.Balance.Tx.TxWithUTxO.Gen as TxWithUTxO
 import qualified Cardano.CoinSelection.Types.TokenBundle as W.TokenBundle
+import qualified Cardano.Crypto as CC
+import qualified Cardano.Crypto.Hash.Class as Crypto
 import qualified Cardano.Ledger.Alonzo.TxWits as Alonzo
 import qualified Cardano.Ledger.Coin as Ledger
 import qualified Cardano.Ledger.Conway.Core as Ledger
@@ -404,6 +429,7 @@ import qualified Cardano.Slotting.Slot as Slotting
 import qualified Cardano.Slotting.Time as Slotting
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Foldable as F
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence.Strict as StrictSeq
@@ -778,6 +804,84 @@ spec_balanceTx era = describe "balanceTx" $ do
             prop_splitSignedValue_mergeSignedValue
                 & property
                 & checkCoverage
+
+    describe "bootstrap witnesses" $ do
+        -- Used in 'estimateTxSize', and in turn used by coin-selection
+        let coinSelectionEstimatedSize :: Natural -> Natural
+            coinSelectionEstimatedSize =
+                W.unTxSize . sizeOf_BootstrapWitnesses
+
+        let withNoKeyWits tx =
+                tx
+                    & (witsTxL . addrTxWitsL) .~ mempty
+                    & (witsTxL . bootAddrTxWitsL) .~ mempty
+
+        let measuredWitSize :: Tx era -> Natural
+            measuredWitSize tx =
+                fromIntegral $
+                    serializedSize tx
+                        - serializedSize (withNoKeyWits tx)
+
+        let evaluateMinimumFeeSize :: Tx era -> Natural
+            evaluateMinimumFeeSize tx =
+                fromIntegral $
+                    Write.unCoin $
+                        estimateSignedTxMinFee
+                            pp
+                            inputsHaveNoRefScripts
+                            (withNoKeyWits tx)
+                            (KeyWitnessCounts 0 (fromIntegral $ length wits))
+              where
+                wits = tx ^. witsTxL . bootAddrTxWitsL
+
+                -- Dummy PParams to ensure a Coin-delta corresponds to a
+                -- size-delta.
+                pp = Ledger.emptyPParams & set ppMinFeeAL (Ledger.Coin 1)
+
+                -- Dummy UTxO lookup telling the ledger the inputs aren't
+                -- bringing reference scripts into scope
+                inputsHaveNoRefScripts =
+                    utxoPromisingInputsHaveAddress dummyAddr tx
+
+        let evaluateMinimumFeeDerivedWitSize :: Tx era -> Natural
+            evaluateMinimumFeeDerivedWitSize tx =
+                evaluateMinimumFeeSize tx
+                    - evaluateMinimumFeeSize (withNoKeyWits tx)
+
+        it
+            "coin-selection's size estimation == balanceTx's size estimation"
+            $ property
+            $ prop_bootstrapWitnesses era
+            $ \n tx -> do
+                let balanceSize = evaluateMinimumFeeDerivedWitSize tx
+                let csSize = coinSelectionEstimatedSize $ intCast n
+                csSize === balanceSize
+
+        -- >= would suffice, but we can be stronger
+        it "balanceTx's size estimation >= measured serialized size" $
+            property $
+                prop_bootstrapWitnesses era $
+                    \n tx -> do
+                        let estimated = evaluateMinimumFeeDerivedWitSize tx
+                        let measured = measuredWitSize tx
+                        let overestimation
+                                | estimated > measured = estimated - measured
+                                | otherwise = 0
+
+                        let tabulateOverestimation =
+                                tabulate "overestimation/wit" $
+                                    if n == 0
+                                        then
+                                            [ show overestimation
+                                                <> " (but with no wits)"
+                                            ]
+                                        else
+                                            [ show $
+                                                overestimation `div` fromIntegral n
+                                            ]
+
+                        estimated .>=. measured
+                            & tabulateOverestimation
   where
     outputs = F.toList . view (bodyTxL . outputsTxBodyL)
 
@@ -1671,6 +1775,101 @@ prop_splitSignedValue_mergeSignedValue (MixedSign v) =
             (valueHasNegativeAndPositiveParts v)
             "valueHasNegativeAndPositiveParts v"
 
+{-# ANN
+    prop_bootstrapWitnesses
+    ("HLint: ignore Eta reduce" :: String)
+    #-}
+prop_bootstrapWitnesses
+    :: forall era
+     . (IsRecentEra era)
+    => RecentEra era
+    -> (Word8 -> Tx era -> Property)
+    -> Word8
+    {- ^ Number of bootstrap witnesses.
+    Testing with [0, 255] should be sufficient.
+    -}
+    -> CardanoApi.NetworkId
+    -- ^ Network - will be encoded inside the witness.
+    -> Word32
+    -- ^ Account index - will be encoded inside the witness.
+    -> Word32
+    -- ^ Index for the first of the 'n' addresses.
+    -> Property
+prop_bootstrapWitnesses _era p n net accIxW addr0IxW =
+    let
+        -- Start incrementing the ixs upward, and if we reach maxBound, loop
+        -- around, to ensure we always have 'n' unique indices.
+        addrIxs =
+            take (fromIntegral n) $
+                [addr0IxW .. maxBound]
+                    ++ filter (< addr0IxW) [minBound .. addr0IxW]
+
+        body = mkBasicTxBody
+
+        wits :: [BootstrapWitness]
+        wits = map (dummyWitForIx body) addrIxs
+
+        tx =
+            mkBasicTx body
+                & (witsTxL . bootAddrTxWitsL) .~ Set.fromList wits
+    in
+        p n tx
+  where
+    accIx = CA.unsafeMkIndex accIxW
+
+    rootK = Byron.genMasterKeyFromMnemonic dummyMnemonic
+    accK = Byron.deriveAccountPrivateKey rootK accIx
+
+    dummyWitForIx
+        :: TxBody era -> Word32 -> BootstrapWitness
+    dummyWitForIx body ixW =
+        let
+            ix :: CA.Index 'CA.WholeDomain 'CA.PaymentK
+            ix = CA.unsafeMkIndex ixW
+            addrK = Byron.deriveAddressPrivateKey accK ix
+            byronNetDiscriminant = case net of
+                CardanoApi.Mainnet -> Byron.byronMainnet
+                CardanoApi.Testnet _ -> Byron.byronTestnet
+            addr =
+                Byron.paymentAddress
+                    byronNetDiscriminant
+                    (CA.toXPub <$> addrK)
+        in
+            mkByronWitness body net addr (Byron.getKey addrK)
+
+    mkByronWitness
+        :: TxBody era
+        -> CardanoApi.NetworkId
+        -> CA.Address
+        -> CA.XPrv
+        -> BootstrapWitness
+    mkByronWitness body network addr xprv =
+        makeBootstrapWitness txHash signingKey addrAttr
+      where
+        txHash = Crypto.castHash $ Crypto.hashWith serialize' body
+        signingKey = CC.SigningKey xprv
+        addrAttr =
+            mkAttributes $
+                AddrAttributes
+                    (extractHDPayload addr)
+                    (toByronNetworkMagic network)
+
+        toByronNetworkMagic CardanoApi.Mainnet =
+            NetworkMainOrStage
+        toByronNetworkMagic (CardanoApi.Testnet (CardanoApi.NetworkMagic nm)) =
+            NetworkTestnet nm
+
+    extractHDPayload :: CA.Address -> Maybe Chain.HDAddressPayload
+    extractHDPayload addr =
+        case decodeFull
+            byronProtVer
+            (BSL.fromStrict $ CA.unAddress addr) of
+            Right byronAddr ->
+                aaVKDerivationPath $
+                    attrData $
+                        Chain.addrAttributes byronAddr
+            Left _ -> Nothing
+
 --------------------------------------------------------------------------------
 -- Arguments for balanceTx
 --------------------------------------------------------------------------------
@@ -2073,6 +2272,41 @@ dummyShelleyChangeAddressGen =
         dummyChangeAddrGen
         (DummyChangeState 0)
 
+{- | Byron style addresses, corresponding to the change addresses generated by
+byron wallets.
+-}
+dummyByronChangeAddressGen :: AnyChangeAddressGenWithState
+dummyByronChangeAddressGen =
+    AnyChangeAddressGenWithState
+        dummyByronChangeAddrGen
+        (DummyChangeState 0)
+
+dummyByronChangeAddrGen :: ChangeAddressGen DummyChangeState
+dummyByronChangeAddrGen =
+    ChangeAddressGen
+        { genChangeAddress = \(DummyChangeState i) ->
+            ( byronAddressAtIx i
+            , DummyChangeState (succ i)
+            )
+        , maxLengthChangeAddress = byronAddressAtIx 0
+        }
+  where
+    rootK = Byron.genMasterKeyFromMnemonic dummyMnemonic
+    accK = Byron.deriveAccountPrivateKey rootK minBound
+
+    byronAddressAtIx :: Int -> Write.Address
+    byronAddressAtIx i =
+        Convert.toLedgerAddress $
+            W.Address $
+                CA.unAddress $
+                    Byron.paymentAddress
+                        Byron.byronMainnet
+                        ( CA.toXPub
+                            <$> Byron.deriveAddressPrivateKey
+                                accK
+                                (CA.unsafeMkIndex $ fromIntegral i)
+                        )
+
 dummyTimeTranslation :: TimeTranslation
 dummyTimeTranslation =
     timeTranslationFromEpochInfo
@@ -2346,9 +2580,14 @@ instance Arbitrary W.TxOut where
 
 instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
     arbitrary =
-        Wallet AllKeyPaymentCredentials
-            <$> genWalletUTxO genShelleyVkAddr
-            <*> pure dummyShelleyChangeAddressGen
+        oneof
+            [ Wallet AllKeyPaymentCredentials
+                <$> genWalletUTxO genShelleyVkAddr
+                <*> pure dummyShelleyChangeAddressGen
+            , Wallet AllByronKeyPaymentCredentials
+                <$> genWalletUTxO genByronVkAddr
+                <*> pure dummyByronChangeAddressGen
+            ]
       where
         genShelleyVkAddr :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))
         genShelleyVkAddr =
@@ -2359,6 +2598,11 @@ instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
                     <*> CardanoApi.genStakeAddressReference
           where
             era = shelleyBasedEraFromRecentEra (recentEra @era)
+
+        genByronVkAddr :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))
+        genByronVkAddr =
+            CardanoApi.byronAddressInEra
+                <$> CardanoApi.genAddressByron
 
         genWalletUTxO
             :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))

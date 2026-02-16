@@ -110,14 +110,17 @@ test-suite unit
     , cardano-balance-tx
     , cardano-binary
     , cardano-coin-selection
+    , cardano-crypto
     , cardano-crypto-class
     , cardano-crypto-test
+    , cardano-crypto-wrapper
     , cardano-ledger-alonzo
     , cardano-ledger-alonzo:testlib
     , cardano-ledger-api
     , cardano-ledger-babbage
     , cardano-ledger-babbage:testlib
     , cardano-ledger-binary
+    , cardano-ledger-byron
     , cardano-ledger-byron-test
     , cardano-ledger-conway
     , cardano-ledger-conway:testlib
