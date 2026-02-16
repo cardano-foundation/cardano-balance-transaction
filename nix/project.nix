@@ -42,7 +42,6 @@ in {
   devShells.default = project.shell;
   inherit project;
   packages.lib = project.hsPkgs.cardano-balance-tx.components.library;
-  # TODO: Re-enable after test suite is restored
-  # packages.unit-tests =
-  #   project.hsPkgs.cardano-balance-tx.components.tests.unit;
+  packages.unit-tests =
+    project.hsPkgs.cardano-balance-tx.components.tests.unit;
 }
