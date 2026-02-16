@@ -70,8 +70,7 @@ import Cardano.CoinSelection.Types.TokenQuantity
     ( TokenQuantity (..)
     )
 import Cardano.Crypto.Hash
-    ( Hash (UnsafeHash)
-    , hashFromBytes
+    ( hashFromBytes
     )
 import Cardano.Ledger.Allegra.Scripts
     ( AllegraEraScript

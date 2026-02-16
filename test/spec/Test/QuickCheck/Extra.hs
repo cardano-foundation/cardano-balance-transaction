@@ -167,7 +167,7 @@ genericRoundRobinShrink fs x =
     SOP.to <$> groundRobinShrinkSOP fs (SOP.from x)
 
 -- | A shrinker for a single field.
-newtype Shrinker a = Shrinker {runShrinker :: a -> [a]}
+newtype Shrinker a = Shrinker (a -> [a])
 
 -- | Function application (like '$') with lower fixity than '<:>'.
 (<@>) :: (a -> b) -> a -> b

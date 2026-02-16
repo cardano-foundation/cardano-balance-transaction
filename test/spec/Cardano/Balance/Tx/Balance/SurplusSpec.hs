@@ -72,15 +72,14 @@ import Prelude
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive as W.Coin
 import qualified Cardano.Balance.Tx.Primitive as W.TxOut
-import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Cardano.Balance.Tx.Primitive.Gen as W
 import qualified Codec.CBOR.Encoding as CBOR
 import qualified Codec.CBOR.Write as CBOR
 import qualified Data.ByteString as BS
 import qualified Data.Foldable as F
 
--- | Polymorphic power, avoids type ambiguity with Prelude '^'.
-power :: (Num a, Integral b) => a -> b -> a
+-- | Power with fixed exponent type to avoid type-defaults warning.
+power :: (Num a) => a -> Int -> a
 power = (^)
 
 spec :: Spec

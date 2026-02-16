@@ -73,8 +73,6 @@ import qualified Cardano.Address.Script as CA
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive as W.Coin
 import qualified Cardano.Balance.Tx.Primitive as W.TokenBundle
-import qualified Cardano.CoinSelection.Types.TokenBundle as CS.TokenBundle
-import qualified Cardano.CoinSelection.Types.TokenMap as CS.TokenMap
 import qualified Codec.CBOR.Encoding as CBOR
 import qualified Codec.CBOR.Write as CBOR
 import qualified Data.ByteString as BS
