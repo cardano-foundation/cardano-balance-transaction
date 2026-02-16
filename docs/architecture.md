@@ -9,42 +9,19 @@ signing. The core entry point is `balanceTx` in
 
 ### Pipeline stages
 
-```
-Partial Tx + UTxO + Protocol Params
-         │
-         ▼
-┌─────────────────────┐
-│  1. Coin Selection   │  Select UTxO inputs to cover outputs + fees
-│     (CoinSelection)  │  + collateral. Uses cardano-coin-selection.
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  2. Fee Estimation   │  Compute minimum fee from tx size and
-│     (SizeEstimation) │  protocol parameters.
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  3. Change Outputs   │  Distribute surplus ada and native tokens
-│     (Surplus)        │  into change outputs, respecting bundle
-│     (TokenBundleSize)│  size limits.
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  4. Redeemer Assign  │  Reindex Plutus script redeemer pointers
-│     (Redeemers)      │  after final input ordering is known.
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  5. Validation       │  Verify the balanced transaction against
-│                      │  ledger rules.
-└─────────┴───────────┘
-          │
-          ▼
-    Balanced Tx (ready to sign)
+```mermaid
+flowchart TD
+    A["Partial Tx + UTxO + Protocol Params"] --> B
+    B["1. Coin Selection\n(CoinSelection)"]
+    B -- "inputs selected" --> C
+    C["2. Fee Estimation\n(SizeEstimation)"]
+    C -- "fee computed" --> D
+    D["3. Change Outputs\n(Surplus, TokenBundleSize)"]
+    D -- "change distributed" --> E
+    E["4. Redeemer Assignment\n(Redeemers)"]
+    E -- "redeemers reindexed" --> F
+    F["5. Validation"]
+    F --> G["Balanced Tx (ready to sign)"]
 ```
 
 ### Iteration
@@ -59,6 +36,15 @@ transaction size and therefore the fee. Each iteration:
 
 Convergence is guaranteed because each round can only add inputs (never
 remove them), and the UTxO set is finite.
+
+```mermaid
+flowchart TD
+    A["Estimate fee"] --> B["Run coin selection"]
+    B --> C["Recompute change outputs"]
+    C --> D{"Fee stabilized?"}
+    D -- "No" --> A
+    D -- "Yes" --> E["Proceed to validation"]
+```
 
 ## Module organization
 
@@ -91,6 +77,36 @@ The library is organized into three layers:
 - **`TimeTranslation`** — slot/time conversion from epoch info
 - **`UTxOAssumptions`** — assumptions about UTxO script types for size
   estimation
+
+```mermaid
+graph TD
+    subgraph Core["Core types"]
+        Primitive
+        Tx
+        TxWithUTxO
+        Eras
+    end
+    subgraph Balancing["Balancing logic"]
+        Balance
+        CoinSelection["Balance.CoinSelection"]
+        Surplus["Balance.Surplus"]
+        TokenBundleSize["Balance.TokenBundleSize"]
+    end
+    subgraph Utilities
+        SizeEstimation
+        Redeemers
+        Sign
+        TimeTranslation
+        UTxOAssumptions
+    end
+    Balance --> CoinSelection
+    Balance --> Surplus
+    Balance --> TokenBundleSize
+    Balance --> SizeEstimation
+    Balance --> Redeemers
+    Balancing --> Core
+    Utilities --> Core
+```
 
 ## Era support
 
