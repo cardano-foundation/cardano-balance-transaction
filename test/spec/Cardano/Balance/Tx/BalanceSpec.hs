@@ -479,6 +479,84 @@ spec_balanceTx era = describe "balanceTx" $ do
     it "produces valid transactions or fails" $
         property (prop_balanceTxValid era)
 
+    describe "bootstrap witnesses" $ do
+        -- Used in 'estimateTxSize', and in turn used by coin-selection
+        let coinSelectionEstimatedSize :: Natural -> Natural
+            coinSelectionEstimatedSize =
+                W.unTxSize . sizeOf_BootstrapWitnesses
+
+        let withNoKeyWits tx =
+                tx
+                    & (witsTxL . addrTxWitsL) .~ mempty
+                    & (witsTxL . bootAddrTxWitsL) .~ mempty
+
+        let measuredWitSize :: Tx era -> Natural
+            measuredWitSize tx =
+                fromIntegral $
+                    serializedSize tx
+                        - serializedSize (withNoKeyWits tx)
+
+        let evaluateMinimumFeeSize :: Tx era -> Natural
+            evaluateMinimumFeeSize tx =
+                fromIntegral $
+                    Write.unCoin $
+                        estimateSignedTxMinFee
+                            pp
+                            inputsHaveNoRefScripts
+                            (withNoKeyWits tx)
+                            (KeyWitnessCounts 0 (fromIntegral $ length wits))
+              where
+                wits = tx ^. witsTxL . bootAddrTxWitsL
+
+                -- Dummy PParams to ensure a Coin-delta corresponds to a
+                -- size-delta.
+                pp = Ledger.emptyPParams & set ppMinFeeAL (Ledger.Coin 1)
+
+                -- Dummy UTxO lookup telling the ledger the inputs aren't
+                -- bringing reference scripts into scope
+                inputsHaveNoRefScripts =
+                    utxoPromisingInputsHaveAddress dummyAddr tx
+
+        let evaluateMinimumFeeDerivedWitSize :: Tx era -> Natural
+            evaluateMinimumFeeDerivedWitSize tx =
+                evaluateMinimumFeeSize tx
+                    - evaluateMinimumFeeSize (withNoKeyWits tx)
+
+        it
+            "coin-selection's size estimation == balanceTx's size estimation"
+            $ property
+            $ prop_bootstrapWitnesses era
+            $ \n tx -> do
+                let balanceSize = evaluateMinimumFeeDerivedWitSize tx
+                let csSize = coinSelectionEstimatedSize $ intCast n
+                csSize === balanceSize
+
+        -- >= would suffice, but we can be stronger
+        it "balanceTx's size estimation >= measured serialized size" $
+            property $
+                prop_bootstrapWitnesses era $
+                    \n tx -> do
+                        let estimated = evaluateMinimumFeeDerivedWitSize tx
+                        let measured = measuredWitSize tx
+                        let overestimation
+                                | estimated > measured = estimated - measured
+                                | otherwise = 0
+
+                        let tabulateOverestimation =
+                                tabulate "overestimation/wit" $
+                                    if n == 0
+                                        then
+                                            [ show overestimation
+                                                <> " (but with no wits)"
+                                            ]
+                                        else
+                                            [ show $
+                                                overestimation `div` fromIntegral n
+                                            ]
+
+                        estimated .>=. measured
+                            & tabulateOverestimation
+
     balanceTxGoldenSpec era
 
     describe "change address generation" $ do
@@ -804,84 +882,6 @@ spec_balanceTx era = describe "balanceTx" $ do
             prop_splitSignedValue_mergeSignedValue
                 & property
                 & checkCoverage
-
-    describe "bootstrap witnesses" $ do
-        -- Used in 'estimateTxSize', and in turn used by coin-selection
-        let coinSelectionEstimatedSize :: Natural -> Natural
-            coinSelectionEstimatedSize =
-                W.unTxSize . sizeOf_BootstrapWitnesses
-
-        let withNoKeyWits tx =
-                tx
-                    & (witsTxL . addrTxWitsL) .~ mempty
-                    & (witsTxL . bootAddrTxWitsL) .~ mempty
-
-        let measuredWitSize :: Tx era -> Natural
-            measuredWitSize tx =
-                fromIntegral $
-                    serializedSize tx
-                        - serializedSize (withNoKeyWits tx)
-
-        let evaluateMinimumFeeSize :: Tx era -> Natural
-            evaluateMinimumFeeSize tx =
-                fromIntegral $
-                    Write.unCoin $
-                        estimateSignedTxMinFee
-                            pp
-                            inputsHaveNoRefScripts
-                            (withNoKeyWits tx)
-                            (KeyWitnessCounts 0 (fromIntegral $ length wits))
-              where
-                wits = tx ^. witsTxL . bootAddrTxWitsL
-
-                -- Dummy PParams to ensure a Coin-delta corresponds to a
-                -- size-delta.
-                pp = Ledger.emptyPParams & set ppMinFeeAL (Ledger.Coin 1)
-
-                -- Dummy UTxO lookup telling the ledger the inputs aren't
-                -- bringing reference scripts into scope
-                inputsHaveNoRefScripts =
-                    utxoPromisingInputsHaveAddress dummyAddr tx
-
-        let evaluateMinimumFeeDerivedWitSize :: Tx era -> Natural
-            evaluateMinimumFeeDerivedWitSize tx =
-                evaluateMinimumFeeSize tx
-                    - evaluateMinimumFeeSize (withNoKeyWits tx)
-
-        it
-            "coin-selection's size estimation == balanceTx's size estimation"
-            $ property
-            $ prop_bootstrapWitnesses era
-            $ \n tx -> do
-                let balanceSize = evaluateMinimumFeeDerivedWitSize tx
-                let csSize = coinSelectionEstimatedSize $ intCast n
-                csSize === balanceSize
-
-        -- >= would suffice, but we can be stronger
-        it "balanceTx's size estimation >= measured serialized size" $
-            property $
-                prop_bootstrapWitnesses era $
-                    \n tx -> do
-                        let estimated = evaluateMinimumFeeDerivedWitSize tx
-                        let measured = measuredWitSize tx
-                        let overestimation
-                                | estimated > measured = estimated - measured
-                                | otherwise = 0
-
-                        let tabulateOverestimation =
-                                tabulate "overestimation/wit" $
-                                    if n == 0
-                                        then
-                                            [ show overestimation
-                                                <> " (but with no wits)"
-                                            ]
-                                        else
-                                            [ show $
-                                                overestimation `div` fromIntegral n
-                                            ]
-
-                        estimated .>=. measured
-                            & tabulateOverestimation
   where
     outputs = F.toList . view (bodyTxL . outputsTxBodyL)
 
