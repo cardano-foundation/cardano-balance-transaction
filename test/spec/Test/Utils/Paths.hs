@@ -11,15 +11,10 @@ import Language.Haskell.TH
     , Lit (..)
     , Q
     )
-import System.FilePath
-    ( (</>)
-    )
 import Prelude
 
-import qualified Data.FileEmbed as FE
-
--- | Get the path to the test/data directory at compile time.
+{- | Get the path to the test/data directory.
+Hardcoded so that @nix run@ works from the repo root.
+-}
 getTestData :: Q Exp
-getTestData = do
-    path <- FE.makeRelativeToProject ("test" </> "data")
-    pure $ LitE (StringL path)
+getTestData = pure $ LitE (StringL "test/data")

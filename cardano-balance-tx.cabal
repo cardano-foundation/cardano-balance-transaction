@@ -154,7 +154,6 @@ test-suite unit
     , containers
     , data-default
     , directory
-    , file-embed
     , filepath
     , fmt
     , generic-lens
