@@ -9,11 +9,12 @@
 
 {-# HLINT ignore "Use camelCase" #-}
 
--- |
--- Copyright: © 2023 IOHK, 2023 Cardano Foundation
--- License: Apache-2.0
---
--- Module for 'signTx' and signing-related utilities for balancing.
+{- |
+Copyright: © 2023 IOHK, 2023 Cardano Foundation
+License: Apache-2.0
+
+Module for 'signTx' and signing-related utilities for balancing.
+-}
 module Cardano.Balance.Tx.Sign
     ( -- * Signing transactions
 
@@ -32,6 +33,24 @@ where
 
 import Cardano.Api.Ledger
     ( Coin
+    )
+import Cardano.Balance.Tx.Eras
+    ( CardanoApiEra
+    , IsRecentEra (..)
+    )
+import Cardano.Balance.Tx.Primitive
+    ( TxSize (..)
+    )
+import Cardano.Balance.Tx.Tx
+    ( KeyWitnessCounts (..)
+    , PParams
+    , Script
+    , Tx
+    , TxIn
+    , UTxO
+    , feeOfBytes
+    , getFeePerByte
+    , toCardanoApiTx
     )
 import Cardano.Ledger.Allegra.Scripts
     ( Timelock
@@ -59,9 +78,6 @@ import Cardano.Ledger.State
 import Cardano.Ledger.Tools
     ( addDummyWitsTx
     )
-import Cardano.Balance.Tx.Primitive
-    ( TxSize (..)
-    )
 import Control.Lens
     ( view
     , (&)
@@ -82,21 +98,6 @@ import Data.Maybe
 import Data.Set
     ( Set
     )
-import Cardano.Balance.Tx.Eras
-    ( CardanoApiEra
-    , IsRecentEra (..)
-    )
-import Cardano.Balance.Tx.Tx
-    ( KeyWitnessCounts (..)
-    , PParams
-    , Script
-    , Tx
-    , TxIn
-    , UTxO
-    , feeOfBytes
-    , getFeePerByte
-    , toCardanoApiTx
-    )
 import Numeric.Natural
     ( Natural
     )
@@ -106,25 +107,26 @@ import qualified Cardano.Address.KeyHash as CA
 import qualified Cardano.Address.Script as CA
 import qualified Cardano.Api as CardanoApi
 import qualified Cardano.Api.Shelley as CardanoApi
-import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
-import qualified Cardano.Ledger.Api as Ledger
-import qualified Cardano.Ledger.Api.Tx.Cert as Conway
-import qualified Cardano.Ledger.Shelley.TxCert as Shelley
 import qualified Cardano.Balance.Tx.Primitive as W
     ( TxSize (..)
     )
 import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
+import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
+import qualified Cardano.Ledger.Api as Ledger
+import qualified Cardano.Ledger.Api.Tx.Cert as Conway
+import qualified Cardano.Ledger.Shelley.TxCert as Shelley
 import qualified Data.Foldable as F
 import qualified Data.List as L
 import qualified Data.Map as Map
 import qualified GHC.IsList as IsList
 
--- | Estimate the size of the transaction when fully signed.
---
--- NOTE: Existing key witnesses in the tx are ignored.
+{- | Estimate the size of the transaction when fully signed.
+
+NOTE: Existing key witnesses in the tx are ignored.
+-}
 estimateSignedTxSize
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => PParams era
     -> KeyWitnessCounts
     -> Tx era
@@ -144,33 +146,36 @@ estimateSignedTxSize pparams (KeyWitnessCounts nWit nBoot) tx =
 numberOfShelleyWitnesses :: Word -> KeyWitnessCounts
 numberOfShelleyWitnesses n = KeyWitnessCounts n 0
 
--- | Estimates the required number of Shelley-era witnesses.
---
--- Because we don't take into account whether two pieces of tx content will need
--- the same key for signing, the result may be an overestimate.
---
--- For instance, this may happen if:
--- 1. Multiple inputs share the same payment key (like in a single address
--- wallet)
--- 2. We are updating our delegation and withdrawing rewards at the same time.
---
--- FIXME [ADP-1515] Improve estimation
---
--- NOTE: Similar to 'estimateTransactionKeyWitnessCount' from cardano-api, which
--- we cannot use because it requires a 'TxBodyContent BuildTx era'.
+{- | Estimates the required number of Shelley-era witnesses.
+
+Because we don't take into account whether two pieces of tx content will need
+the same key for signing, the result may be an overestimate.
+
+For instance, this may happen if:
+1. Multiple inputs share the same payment key (like in a single address
+wallet)
+2. We are updating our delegation and withdrawing rewards at the same time.
+
+FIXME [ADP-1515] Improve estimation
+
+NOTE: Similar to 'estimateTransactionKeyWitnessCount' from cardano-api, which
+we cannot use because it requires a 'TxBodyContent BuildTx era'.
+-}
 estimateKeyWitnessCounts
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => UTxO era
-    -- ^ Must contain all inputs from the 'TxBody' or
-    -- 'estimateKeyWitnessCounts will 'error'.
+    {- ^ Must contain all inputs from the 'TxBody' or
+    'estimateKeyWitnessCounts will 'error'.
+    -}
     -> Tx era
     -> TimelockKeyWitnessCounts
-    -- ^ Specifying the intended number of timelock script key witnesses may
-    -- save space and fees when constructing a transaction.
-    --
-    -- Timelock scripts without entries in this map will have their key witness
-    -- counts estimated according to 'estimateMaxWitnessRequiredPerInput'.
+    {- ^ Specifying the intended number of timelock script key witnesses may
+    save space and fees when constructing a transaction.
+
+    Timelock scripts without entries in this map will have their key witness
+    counts estimated according to 'estimateMaxWitnessRequiredPerInput'.
+    -}
     -> KeyWitnessCounts
 estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
     let txIns = map fst $ CardanoApi.txIns txbodycontent
@@ -179,10 +184,10 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
                 CardanoApi.TxInsCollateral _ ins -> ins
                 CardanoApi.TxInsCollateralNone -> []
         vkInsUnique =
-            L.nub
-                $ filter (not . hasScriptCred utxo)
-                $ map CardanoApi.toShelleyTxIn
-                $ txIns ++ txInsCollateral
+            L.nub $
+                filter (not . hasScriptCred utxo) $
+                    map CardanoApi.toShelleyTxIn $
+                        txIns ++ txInsCollateral
         txExtraKeyWits = CardanoApi.txExtraKeyWits txbodycontent
         txExtraKeyWits' = case txExtraKeyWits of
             CardanoApi.TxExtraKeyWitnesses _ khs -> khs
@@ -204,13 +209,13 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
             CardanoApi.TxCertificates _ certs ->
                 sumVia estimateDelegSigningKeys $ fst <$> IsList.toList certs
         nonInputWits =
-            numberOfShelleyWitnesses
-                $ fromIntegral
-                $ length txExtraKeyWits'
-                    + length txWithdrawals'
-                    + txUpdateProposal'
-                    + fromIntegral txCerts
-                    + fromIntegral timelockTotalWitCount
+            numberOfShelleyWitnesses $
+                fromIntegral $
+                    length txExtraKeyWits'
+                        + length txWithdrawals'
+                        + txUpdateProposal'
+                        + fromIntegral txCerts
+                        + fromIntegral timelockTotalWitCount
         inputWits =
             KeyWitnessCounts
                 { nKeyWits =
@@ -229,19 +234,19 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
     txbodycontent = CardanoApi.getTxBodyContent body
     timelockTotalWitCount :: Natural
     timelockTotalWitCount =
-        sum
-            $ Map.elems
-            $ Map.unionWith
-                (\_est spec -> spec) -- Allow specified values to override
-                upperBoundEstimatedTimelockKeyWitnessCounts
-                specifiedTimelockKeyWitnessCounts
+        sum $
+            Map.elems $
+                Map.unionWith
+                    (\_est spec -> spec) -- Allow specified values to override
+                    upperBoundEstimatedTimelockKeyWitnessCounts
+                    specifiedTimelockKeyWitnessCounts
       where
         specifiedTimelockKeyWitnessCounts
             :: Map (ScriptHash) Natural
         specifiedTimelockKeyWitnessCounts =
-            Map.fromList
-                $ mapMaybe resolve
-                $ F.toList scriptsNeeded
+            Map.fromList $
+                mapMaybe resolve $
+                    F.toList scriptsNeeded
           where
             resolve
                 :: (ScriptHash)
@@ -268,9 +273,9 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
 
         scriptsNeeded :: Set (ScriptHash)
         scriptsNeeded =
-            getScriptsHashesNeeded
-                $ getScriptsNeeded utxo
-                $ view bodyTxL tx
+            getScriptsHashesNeeded $
+                getScriptsNeeded utxo $
+                    view bodyTxL tx
 
         scriptsAvailableInBody :: Map (ScriptHash) (Script era)
         scriptsAvailableInBody = tx ^. witsTxL . scriptTxWitsL
@@ -280,15 +285,15 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
         -> Integer
     estimateDelegSigningKeys = \case
         CardanoApi.ShelleyRelatedCertificate s2b shelleyCert ->
-            CardanoApi.shelleyToBabbageEraConstraints s2b
-                $ case shelleyCert of
+            CardanoApi.shelleyToBabbageEraConstraints s2b $
+                case shelleyCert of
                     Shelley.RegTxCert _ -> 0
                     Shelley.DelegStakeTxCert c _ -> estimateWitNumForCred c
                     Shelley.UnRegTxCert c -> estimateWitNumForCred c
                     _ -> 1
         CardanoApi.ConwayCertificate conway conwayCert ->
-            CardanoApi.conwayEraOnwardsConstraints conway
-                $ case conwayCert of
+            CardanoApi.conwayEraOnwardsConstraints conway $
+                case conwayCert of
                     Conway.RegTxCert _ -> 0
                     Conway.DelegStakeTxCert c _ -> estimateWitNumForCred c
                     Conway.UnRegTxCert c -> estimateWitNumForCred c
@@ -321,8 +326,8 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
             Just (Addr _ (ScriptHashObj _) _) -> True
             Just (AddrBootstrap _) -> False
             Nothing ->
-                error
-                    $ unwords
+                error $
+                    unwords
                         [ "estimateMaxWitnessRequiredPerInput: input not in utxo."
                         , "Caller is expected to ensure this does not happen."
                         ]
@@ -336,15 +341,16 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
             Just Addr{} -> False
             Just (AddrBootstrap _) -> True
             Nothing ->
-                error
-                    $ unwords
+                error $
+                    unwords
                         [ "estimateMaxWitnessRequiredPerInput: input not in utxo."
                         , "Caller is expected to ensure this does not happen."
                         ]
 
--- | Used to specify the intended number of timelock script key witnesses.
---
--- The 'Semigroup' instance resolves conflicts using 'max'.
+{- | Used to specify the intended number of timelock script key witnesses.
+
+The 'Semigroup' instance resolves conflicts using 'max'.
+-}
 newtype TimelockKeyWitnessCounts = TimelockKeyWitnessCounts
     { getTimelockKeyWitnessCounts
         :: Map (ScriptHash) Natural
@@ -421,7 +427,7 @@ estimateMaxWitnessRequiredPerInput = \case
 
 estimateSignedTxMinFee
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => PParams era
     -> UTxO era
     -> Tx era
@@ -444,11 +450,12 @@ sizeOf_BootstrapWitnesses :: Natural -> Natural
 sizeOf_BootstrapWitnesses 0 = 0
 sizeOf_BootstrapWitnesses n = 4 + 180 * n
 
--- | Adds 'n' number of mock key witnesses to the tx. Any preexisting witnesses
--- will first be removed.
+{- | Adds 'n' number of mock key witnesses to the tx. Any preexisting witnesses
+will first be removed.
+-}
 mockWitnesses
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Word -- Key witnesses
     -> PParams era
     -> Tx era

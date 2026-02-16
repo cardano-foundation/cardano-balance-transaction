@@ -13,17 +13,18 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 
--- |
--- Copyright: © 2022 IOHK
--- License: Apache-2.0
---
--- Module containing primitive types and functionality appropriate for
--- constructing transactions.
---
--- Indented as a replacement to 'cardano-api' closer
--- to the ledger types, and only caring about the two latest eras (Cf.
--- 'RecentEra'). Intended to be used by things like balanceTx, constructTx and
--- wallet migration.
+{- |
+Copyright: © 2022 IOHK
+License: Apache-2.0
+
+Module containing primitive types and functionality appropriate for
+constructing transactions.
+
+Indented as a replacement to 'cardano-api' closer
+to the ledger types, and only caring about the two latest eras (Cf.
+'RecentEra'). Intended to be used by things like balanceTx, constructTx and
+wallet migration.
+-}
 module Cardano.Balance.Tx.Tx
     ( -- ** Key witness counts
       KeyWitnessCounts (..)
@@ -119,6 +120,16 @@ module Cardano.Balance.Tx.Tx
     )
 where
 
+import Cardano.Balance.Tx.Eras
+    ( Babbage
+    , CardanoApiEra
+    , Conway
+    , IsRecentEra (..)
+    , LatestLedgerEra
+    , MaybeInRecentEra (..)
+    , RecentEra (..)
+    , shelleyBasedEraFromRecentEra
+    )
 import Cardano.Crypto.Hash
     ( Hash (UnsafeHash)
     )
@@ -203,16 +214,6 @@ import Data.IntCast
 import GHC.Stack
     ( HasCallStack
     )
-import Cardano.Balance.Tx.Eras
-    ( Babbage
-    , CardanoApiEra
-    , Conway
-    , IsRecentEra (..)
-    , LatestLedgerEra
-    , MaybeInRecentEra (..)
-    , RecentEra (..)
-    , shelleyBasedEraFromRecentEra
-    )
 import Numeric.Natural
     ( Natural
     )
@@ -225,6 +226,8 @@ import Prelude
 
 import qualified Cardano.Api as CardanoApi
 import qualified Cardano.Api.Shelley as CardanoApi
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Cardano.Crypto.Hash.Class as Crypto
 import qualified Cardano.Ledger.Address as Ledger
 import qualified Cardano.Ledger.Alonzo.Core as Alonzo
@@ -239,8 +242,6 @@ import qualified Cardano.Ledger.Mary.Value as Value
 import qualified Cardano.Ledger.Plutus.Data as Alonzo
 import qualified Cardano.Ledger.Shelley.UTxO as Shelley
 import qualified Cardano.Ledger.TxIn as Ledger
-import qualified Cardano.Balance.Tx.Primitive as W
-import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Data.Map as Map
 
 --------------------------------------------------------------------------------
@@ -305,17 +306,18 @@ datumHashFromBytes = fmap unsafeMakeSafeHash <$> Crypto.hashFromBytes
 datumHashToBytes :: SafeHash a -> ByteString
 datumHashToBytes = Crypto.hashToBytes . extractHash
 
--- | Type representing a TxOut in the latest or previous era.
---
--- The underlying representation is isomorphic to 'TxOut LatestLedgerEra'.
---
--- Can be unwrapped using 'unwrapTxOutInRecentEra' or
--- 'utxoFromTxOutsInRecentEra'.
---
--- Implementation assumes @TxOut latestEra ⊇ TxOut prevEra@ in the sense that
--- the latest era has not removed information from the @TxOut@. This allows
--- e.g. @ToJSON@ / @FromJSON@ instances to be written for two eras using only
--- one implementation.
+{- | Type representing a TxOut in the latest or previous era.
+
+The underlying representation is isomorphic to 'TxOut LatestLedgerEra'.
+
+Can be unwrapped using 'unwrapTxOutInRecentEra' or
+'utxoFromTxOutsInRecentEra'.
+
+Implementation assumes @TxOut latestEra ⊇ TxOut prevEra@ in the sense that
+the latest era has not removed information from the @TxOut@. This allows
+e.g. @ToJSON@ / @FromJSON@ instances to be written for two eras using only
+one implementation.
+-}
 data TxOutInRecentEra
     = TxOutInRecentEra
         Address
@@ -327,7 +329,7 @@ data TxOutInRecentEra
 
 wrapTxOutInRecentEra
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => TxOut era
     -> TxOutInRecentEra
 wrapTxOutInRecentEra out = case recentEra @era of
@@ -344,7 +346,7 @@ data ErrInvalidTxOutInEra
 
 unwrapTxOutInRecentEra
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => TxOutInRecentEra
     -> Either ErrInvalidTxOutInEra (TxOut era)
 unwrapTxOutInRecentEra recentEraTxOut = case recentEra @era of
@@ -396,26 +398,27 @@ recentEraToBabbageTxOut (TxOutInRecentEra addr val datum mscript) =
 -- MinimumUTxO
 --
 
--- | Compute the minimum ada quantity required for a given 'TxOut'.
---
--- Unlike @Ledger.evaluateMinLovelaceOutput@, this function may return an
--- overestimation for the sake of satisfying the property:
---
--- @
---     forall out.
---     let
---         c = computeMinimumCoinForUTxO out
---     in
---         forall c' >= c.
---         not $ isBelowMinimumCoinForTxOut modifyTxOutCoin (const c') out
--- @
---
--- This makes it easy for callers to create outputs with near-minimum ada
--- quantities regardless of the fact that modifying the ada 'Coin' value may
--- itself change the size and min-ada requirement.
+{- | Compute the minimum ada quantity required for a given 'TxOut'.
+
+Unlike @Ledger.evaluateMinLovelaceOutput@, this function may return an
+overestimation for the sake of satisfying the property:
+
+@
+    forall out.
+    let
+        c = computeMinimumCoinForUTxO out
+    in
+        forall c' >= c.
+        not $ isBelowMinimumCoinForTxOut modifyTxOutCoin (const c') out
+@
+
+This makes it easy for callers to create outputs with near-minimum ada
+quantities regardless of the fact that modifying the ada 'Coin' value may
+itself change the size and min-ada requirement.
+-}
 computeMinimumCoinForTxOut
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => PParams era
     -> TxOut era
     -> Coin
@@ -430,7 +433,7 @@ computeMinimumCoinForTxOut pp out =
 
 isBelowMinimumCoinForTxOut
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => PParams era
     -> TxOut era
     -> Bool
@@ -446,23 +449,24 @@ isBelowMinimumCoinForTxOut pp out =
 -- UTxO
 --------------------------------------------------------------------------------
 
--- | Construct a 'UTxO era' using 'TxOutInRecentEra'.
---
--- Used to have a possibility for failure when we supported Alonzo and Babbage,
--- and could possibly become failable again with future eras.
+{- | Construct a 'UTxO era' using 'TxOutInRecentEra'.
+
+Used to have a possibility for failure when we supported Alonzo and Babbage,
+and could possibly become failable again with future eras.
+-}
 utxoFromTxOutsInRecentEra
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => [(TxIn, TxOutInRecentEra)]
     -> Either ErrInvalidTxOutInEra (Shelley.UTxO era)
 utxoFromTxOutsInRecentEra =
     fmap (Shelley.UTxO . Map.fromList)
         . mapM (secondM unwrapTxOutInRecentEra)
   where
-    secondM :: Monad m => (o -> m o') -> (i, o) -> m (i, o')
+    secondM :: (Monad m) => (o -> m o') -> (i, o) -> m (i, o')
     secondM f (i, o) = f o >>= \o' -> return (i, o')
 
 unsafeUtxoFromTxOutsInRecentEra
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => [(TxIn, TxOutInRecentEra)]
     -> Shelley.UTxO era
 unsafeUtxoFromTxOutsInRecentEra =
@@ -474,9 +478,9 @@ forceUTxOToEra
     => UTxO era1
     -> Either ErrInvalidTxOutInEra (UTxO era2)
 forceUTxOToEra (UTxO utxo) =
-    utxoFromTxOutsInRecentEra
-        $ map (second wrapTxOutInRecentEra)
-        $ Map.toList utxo
+    utxoFromTxOutsInRecentEra $
+        map (second wrapTxOutInRecentEra) $
+            Map.toList utxo
 
 --------------------------------------------------------------------------------
 -- Tx
@@ -484,13 +488,13 @@ forceUTxOToEra (UTxO utxo) =
 
 serializeTx
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Tx era
     -> ByteString
 serializeTx tx =
     CardanoApi.serialiseToCBOR $ toCardanoApiTx tx
 
-deserializeTx :: forall era. IsRecentEra era => ByteString -> Tx era
+deserializeTx :: forall era. (IsRecentEra era) => ByteString -> Tx era
 deserializeTx = case recentEra @era of
     RecentEraBabbage -> deserializeBabbageTx
     RecentEraConway -> deserializeConwayTx
@@ -514,7 +518,7 @@ deserializeTx = case recentEra @era of
 --------------------------------------------------------------------------------
 
 fromCardanoApiTx
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => CardanoApi.Tx (CardanoApiEra era)
     -> Tx era
 fromCardanoApiTx = \case
@@ -523,12 +527,12 @@ fromCardanoApiTx = \case
 
 toCardanoApiTx
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Tx era
     -> CardanoApi.Tx (CardanoApiEra era)
 toCardanoApiTx =
-    CardanoApi.ShelleyTx
-        $ shelleyBasedEraFromRecentEra (recentEra :: RecentEra era)
+    CardanoApi.ShelleyTx $
+        shelleyBasedEraFromRecentEra (recentEra :: RecentEra era)
 
 --------------------------------------------------------------------------------
 -- PParams
@@ -538,7 +542,7 @@ type PParams = Core.PParams
 
 data PParamsInAnyRecentEra where
     PParamsInAnyRecentEra
-        :: IsRecentEra era
+        :: (IsRecentEra era)
         => RecentEra era
         -> PParams era
         -> PParamsInAnyRecentEra
@@ -572,8 +576,8 @@ getFeePerByte
     => PParams era
     -> FeePerByte
 getFeePerByte pp =
-    unsafeCoinToFee
-        $ case recentEra @era of
+    unsafeCoinToFee $
+        case recentEra @era of
             RecentEraConway -> pp ^. Core.ppMinFeeAL
             RecentEraBabbage -> pp ^. Core.ppMinFeeAL
   where
@@ -593,31 +597,32 @@ type ExUnits = Alonzo.ExUnits
 txscriptfee :: ExUnitPrices -> ExUnits -> Coin
 txscriptfee = Alonzo.txscriptfee
 
-maxScriptExecutionCost :: IsRecentEra era => PParams era -> Coin
+maxScriptExecutionCost :: (IsRecentEra era) => PParams era -> Coin
 maxScriptExecutionCost pp =
     txscriptfee (pp ^. Alonzo.ppPricesL) (pp ^. Alonzo.ppMaxTxExUnitsL)
 
-stakeKeyDeposit :: IsRecentEra era => PParams era -> Coin
+stakeKeyDeposit :: (IsRecentEra era) => PParams era -> Coin
 stakeKeyDeposit pp = pp ^. Core.ppKeyDepositL
 
 --------------------------------------------------------------------------------
 -- Balancing
 --------------------------------------------------------------------------------
 
--- | Evaluate the /balance/ of a transaction using the ledger.
---
--- The balance is defined as:
--- @
--- (value consumed by transaction) - (value produced by transaction)
--- @
---
--- For a transaction to be valid, it must have a balance of __zero__.
---
--- Note that the fee field of the transaction affects the balance, and
--- is not automatically the minimum fee.
+{- | Evaluate the /balance/ of a transaction using the ledger.
+
+The balance is defined as:
+@
+(value consumed by transaction) - (value produced by transaction)
+@
+
+For a transaction to be valid, it must have a balance of __zero__.
+
+Note that the fee field of the transaction affects the balance, and
+is not automatically the minimum fee.
+-}
 evaluateTransactionBalance
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => PParams era
     -> (StakeCredential -> Maybe Coin)
     -> Shelley.UTxO era

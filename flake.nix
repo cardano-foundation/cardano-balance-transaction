@@ -20,8 +20,8 @@
     };
   };
 
-  outputs =
-    inputs@{ self, nixpkgs, flake-utils, haskellNix, iohkNix, mkdocs, CHaP, ... }:
+  outputs = inputs@{ self, nixpkgs, flake-utils, haskellNix, iohkNix, mkdocs
+    , CHaP, ... }:
     let version = self.dirtyShortRev or self.shortRev;
     in flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system:
       let

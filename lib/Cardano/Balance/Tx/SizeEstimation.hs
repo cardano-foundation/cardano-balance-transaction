@@ -17,12 +17,13 @@
 {- HLINT ignore "Use <$>" -}
 {- HLINT ignore "Use camelCase" -}
 
--- |
--- Copyright: © 2023 IOHK, 2023 Cardano Foundation
--- License: Apache-2.0
---
--- Module containing logic relating to size estimation as needed, mainly for
--- the purpose of coin selection.
+{- |
+Copyright: © 2023 IOHK, 2023 Cardano Foundation
+License: Apache-2.0
+
+Module containing logic relating to size estimation as needed, mainly for
+the purpose of coin selection.
+-}
 module Cardano.Balance.Tx.SizeEstimation
     ( -- * Needed for normal coin selection for balanceTx
       estimateTxSize
@@ -45,6 +46,15 @@ where
 import Cardano.Address.Script
     ( Script (..)
     )
+import Cardano.Balance.Tx.Sign
+    ( estimateMaxWitnessRequiredPerInput
+    )
+import Cardano.Balance.Tx.Tx
+    ( FeePerByte (..)
+    )
+import Cardano.Balance.Tx.UTxOAssumptions
+    ( UTxOAssumptions (..)
+    )
 import Data.Generics.Labels
     (
     )
@@ -53,15 +63,6 @@ import Data.Set
     )
 import GHC.Generics
     ( Generic
-    )
-import Cardano.Balance.Tx.Tx
-    ( FeePerByte (..)
-    )
-import Cardano.Balance.Tx.Sign
-    ( estimateMaxWitnessRequiredPerInput
-    )
-import Cardano.Balance.Tx.UTxOAssumptions
-    ( UTxOAssumptions (..)
     )
 import Numeric.Natural
     ( Natural
@@ -83,14 +84,15 @@ import qualified Data.Foldable as F
 -- Size estimation
 --------------------------------------------------------------------------------
 
--- | Includes just the parts of a transaction necessary to estimate its size.
---
--- In particular, this record type includes the minimal set of data needed for
--- the 'estimateTxCost' and 'estimateTxSize' functions to perform their
--- calculations, and nothing else.
---
--- The data included in 'TxSkeleton' is a subset of the data included in the
--- union of 'SelectionSkeleton' and 'TransactionCtx'.
+{- | Includes just the parts of a transaction necessary to estimate its size.
+
+In particular, this record type includes the minimal set of data needed for
+the 'estimateTxCost' and 'estimateTxSize' functions to perform their
+calculations, and nothing else.
+
+The data included in 'TxSkeleton' is a subset of the data included in the
+union of 'SelectionSkeleton' and 'TransactionCtx'.
+-}
 data TxSkeleton = TxSkeleton
     { txWitnessTag :: !TxWitnessTag
     , txInputCount :: !Int
@@ -100,9 +102,10 @@ data TxSkeleton = TxSkeleton
     }
     deriving (Eq, Show, Generic)
 
--- | Estimates the final cost of a transaction based on its skeleton.
---
--- The constant tx fee is /not/ included in the result of this function.
+{- | Estimates the final cost of a transaction based on its skeleton.
+
+The constant tx fee is /not/ included in the result of this function.
+-}
 estimateTxCost :: FeePerByte -> TxSkeleton -> W.Coin
 estimateTxCost (FeePerByte feePerByte) skeleton =
     computeFee (estimateTxSize skeleton)
@@ -110,14 +113,15 @@ estimateTxCost (FeePerByte feePerByte) skeleton =
     computeFee :: W.TxSize -> W.Coin
     computeFee (W.TxSize size) = W.Coin $ feePerByte * size
 
--- | Estimates the final size of a transaction based on its skeleton.
---
--- This function uses the upper bounds of CBOR serialized objects as the basis
--- for many of its calculations. The following document is used as a reference:
---
--- https://github.com/IntersectMBO/cardano-ledger/blob/master/eras/shelley/test-suite/cddl-files/shelley.cddl
--- https://github.com/IntersectMBO/cardano-ledger/blob/master/eras/shelley-ma/test-suite/cddl-files/shelley-ma.cddl
--- https://github.com/IntersectMBO/cardano-ledger/blob/master/eras/alonzo/test-suite/cddl-files/alonzo.cddl
+{- | Estimates the final size of a transaction based on its skeleton.
+
+This function uses the upper bounds of CBOR serialized objects as the basis
+for many of its calculations. The following document is used as a reference:
+
+https://github.com/IntersectMBO/cardano-ledger/blob/master/eras/shelley/test-suite/cddl-files/shelley.cddl
+https://github.com/IntersectMBO/cardano-ledger/blob/master/eras/shelley-ma/test-suite/cddl-files/shelley-ma.cddl
+https://github.com/IntersectMBO/cardano-ledger/blob/master/eras/alonzo/test-suite/cddl-files/alonzo.cddl
+-}
 estimateTxSize
     :: TxSkeleton
     -> W.TxSize

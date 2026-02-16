@@ -29,10 +29,9 @@ let
     modules = [
       ({ lib, pkgs, ... }: {
         packages.cardano-crypto-praos.components.library.pkgconfig =
-          lib.mkForce [ [ pkgs.libsodium-vrf pkgs.secp256k1 ] ];
+          lib.mkForce [[ pkgs.libsodium-vrf pkgs.secp256k1 ]];
         packages.cardano-crypto-class.components.library.pkgconfig =
-          lib.mkForce
-          [ [ pkgs.libsodium-vrf pkgs.secp256k1 pkgs.libblst ] ];
+          lib.mkForce [[ pkgs.libsodium-vrf pkgs.secp256k1 pkgs.libblst ]];
       })
     ];
   };

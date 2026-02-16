@@ -3,7 +3,9 @@ name:          cardano-balance-tx
 version:       0.1.0
 synopsis:      Balancing transactions for the Cardano blockchain.
 description:   Please see README.md.
-homepage:      https://github.com/cardano-foundation/cardano-balance-transaction
+homepage:
+  https://github.com/cardano-foundation/cardano-balance-transaction
+
 author:        Cardano Foundation (High Assurance Lab)
 maintainer:    hal@cardanofoundation.org
 copyright:     2018-2022 IOHK, 2023-2026 Cardano Foundation
@@ -83,6 +85,7 @@ library
     Cardano.Balance.Tx.Gen
     Cardano.Balance.Tx.Primitive
     Cardano.Balance.Tx.Primitive.Convert
+    Cardano.Balance.Tx.Primitive.Gen
     Cardano.Balance.Tx.Redeemers
     Cardano.Balance.Tx.Sign
     Cardano.Balance.Tx.SizeEstimation
@@ -92,20 +95,94 @@ library
     Cardano.Balance.Tx.TxWithUTxO.Gen
     Cardano.Balance.Tx.UTxOAssumptions
 
--- TODO: Re-enable test suite after replacing wallet dependencies (Task #5)
--- test-suite unit
---   import:             language, opts-exe
---   ghc-options:        -with-rtsopts=-M2G -with-rtsopts=-N4
---   type:               exitcode-stdio-1.0
---   hs-source-dirs:     test/spec test/data
---   main-is:            run-test-suite.hs
---   build-depends:
---     ...
---   build-tool-depends: hspec-discover:hspec-discover
---   other-modules:
---     Cardano.Balance.Tx.Balance.CoinSelectionSpec
---     Cardano.Balance.Tx.Balance.SurplusSpec
---     Cardano.Balance.Tx.Balance.TokenBundleSizeSpec
---     Cardano.Balance.Tx.BalanceSpec
---     Cardano.Balance.Tx.TxSpec
---     Spec
+test-suite unit
+  import:             language, opts-exe
+  ghc-options:        -with-rtsopts=-M2G -with-rtsopts=-N4
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test/spec test/data
+  main-is:            run-test-suite.hs
+  build-depends:
+    , aeson
+    , base
+    , bytestring
+    , cardano-addresses
+    , cardano-api
+    , cardano-balance-tx
+    , cardano-binary
+    , cardano-coin-selection
+    , cardano-crypto-class
+    , cardano-crypto-test
+    , cardano-ledger-alonzo
+    , cardano-ledger-alonzo:testlib
+    , cardano-ledger-api
+    , cardano-ledger-babbage
+    , cardano-ledger-babbage:testlib
+    , cardano-ledger-binary
+    , cardano-ledger-byron-test
+    , cardano-ledger-conway
+    , cardano-ledger-conway:testlib
+    , cardano-ledger-core
+    , cardano-ledger-core:testlib
+    , cardano-ledger-mary
+    , cardano-ledger-mary:testlib
+    , cardano-ledger-shelley
+    , cardano-slotting
+    , cardano-strict-containers
+    , cborg
+    , containers
+    , data-default
+    , directory
+    , file-embed
+    , filepath
+    , fmt
+    , generic-lens
+    , generics-sop
+    , groups
+    , hedgehog-quickcheck
+    , hspec
+    , hspec-core
+    , hspec-golden
+    , int-cast
+    , iproute
+    , lens
+    , memory
+    , MonadRandom
+    , monoid-subclasses
+    , network
+    , nonempty-containers
+    , OddWord
+    , ordered-containers
+    , ouroboros-consensus
+    , ouroboros-network-api
+    , plutus-ledger-api:plutus-ledger-api-testlib
+    , pretty-show
+    , QuickCheck
+    , quickcheck-classes
+    , quickcheck-instances
+    , quiet
+    , random
+    , sop-extras
+    , splitmix
+    , template-haskell
+    , text
+    , time
+    , transformers
+
+  -- Cardano ecosystem (all from CHaP / Hackage)
+  -- Haskell ecosystem (all from Hackage)
+  build-tool-depends: hspec-discover:hspec-discover
+  other-modules:
+    Cardano.Api.Gen
+    Cardano.Balance.Tx.Balance.CoinSelectionSpec
+    Cardano.Balance.Tx.Balance.SurplusSpec
+    Cardano.Balance.Tx.Balance.TokenBundleSizeSpec
+    Cardano.Balance.Tx.BalanceSpec
+    Cardano.Balance.Tx.TxSpec
+    Cardano.Ledger.Credential.Safe
+    Spec
+    System.Random.StdGenSeed
+    Test.Hspec.Extra
+    Test.QuickCheck.Extra
+    Test.Utils.Laws
+    Test.Utils.Paths
+    Test.Utils.Pretty

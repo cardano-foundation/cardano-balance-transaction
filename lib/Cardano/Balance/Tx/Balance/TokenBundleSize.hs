@@ -6,6 +6,17 @@ module Cardano.Balance.Tx.Balance.TokenBundleSize
     )
 where
 
+import Cardano.Balance.Tx.Balance.CoinSelection
+    ( fromCSTokenBundle
+    )
+import Cardano.Balance.Tx.Eras
+    ( IsRecentEra
+    )
+import Cardano.Balance.Tx.Tx
+    ( PParams
+    , Value
+    , Version
+    )
 import Cardano.CoinSelection.Size
     ( TokenBundleSizeAssessment (..)
     , TokenBundleSizeAssessor (..)
@@ -26,29 +37,19 @@ import Control.Lens
 import Data.IntCast
     ( intCastMaybe
     )
-import Cardano.Balance.Tx.Eras
-    ( IsRecentEra
-    )
-import Cardano.Balance.Tx.Tx
-    ( PParams
-    , Value
-    , Version
-    )
-import Cardano.Balance.Tx.Balance.CoinSelection
-    ( fromCSTokenBundle
-    )
 import Prelude
 
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Data.ByteString.Lazy as BL
 
--- | Assesses a token bundle size in relation to the maximum size that can be
---   included in a transaction output.
---
--- See 'TokenBundleSizeAssessor' for the expected properties of this function.
+{- | Assesses a token bundle size in relation to the maximum size that can be
+  included in a transaction output.
+
+See 'TokenBundleSizeAssessor' for the expected properties of this function.
+-}
 mkTokenBundleSizeAssessor
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => PParams era
     -> TokenBundleSizeAssessor
 mkTokenBundleSizeAssessor pp = TokenBundleSizeAssessor $ \csBundle ->

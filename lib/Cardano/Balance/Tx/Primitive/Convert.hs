@@ -1,15 +1,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
--- |
--- Copyright: © 2024 Cardano Foundation
--- License: Apache-2.0
---
--- Conversions between primitive types and ledger types.
--- Replaces @Cardano.Wallet.Primitive.Ledger.Convert@.
+{- |
+Copyright: © 2024 Cardano Foundation
+License: Apache-2.0
+
+Conversions between primitive types and ledger types.
+Replaces @Cardano.Wallet.Primitive.Ledger.Convert@.
+-}
 module Cardano.Balance.Tx.Primitive.Convert
     ( -- * Coin
       toLedgerCoin
@@ -181,9 +181,9 @@ fromLedgerTokenBundle (MaryValue ledgerAda (MultiAsset ledgerTokens)) =
     TokenBundle (fromLedgerCoin ledgerAda) walletTokenMap
   where
     walletTokenMap =
-        CS.TokenMap.fromFlatList
-            $ concatMap expandPolicy
-            $ Map.toList ledgerTokens
+        CS.TokenMap.fromFlatList $
+            concatMap expandPolicy $
+                Map.toList ledgerTokens
 
     expandPolicy
         :: (Ledger.PolicyID, Map.Map Ledger.AssetName Integer)
@@ -211,10 +211,10 @@ toLedgerTxIn (W.TxIn tid ix) =
     Ledger.TxIn (toLedgerTxId tid) (toEnum $ intCast ix)
   where
     toLedgerTxId h =
-        Ledger.TxId
-            $ Hashes.unsafeMakeSafeHash
-            $ Crypto.UnsafeHash
-            $ SBS.toShort h
+        Ledger.TxId $
+            Hashes.unsafeMakeSafeHash $
+                Crypto.UnsafeHash $
+                    SBS.toShort h
 
 -- | Convert from a ledger 'TxIn'.
 fromLedgerTxIn :: Ledger.TxIn -> W.TxIn
@@ -225,8 +225,8 @@ fromLedgerTxIn (Ledger.TxIn (Ledger.TxId tid) ix) =
     convertIx = fromMaybe err . intCastMaybe . fromEnum
       where
         err =
-            error
-                $ unwords
+            error $
+                unwords
                     [ "fromLedgerTxIn:"
                     , "Unexpected out of bounds TxIx"
                     , show ix
@@ -241,8 +241,8 @@ toLedgerAddress :: W.Address -> Ledger.Addr
 toLedgerAddress (W.Address bytes) = case Ledger.decodeAddr bytes of
     Just addr -> addr
     Nothing ->
-        error
-            $ unwords
+        error $
+            unwords
                 [ "toLedgerAddress: invalid address"
                 , show bytes
                 ]
@@ -273,14 +273,16 @@ toConwayTxOut (W.TxOut addr bundle) =
         NoDatum
         SNothing
 
--- | Convert from a Babbage-era ledger 'TxOut'.
--- Inline scripts and datums are discarded.
+{- | Convert from a Babbage-era ledger 'TxOut'.
+Inline scripts and datums are discarded.
+-}
 fromBabbageTxOut :: BabbageTxOut BabbageEra -> W.TxOut
 fromBabbageTxOut (BabbageTxOut addr val _ _) =
     W.TxOut (fromLedgerAddress addr) (fromLedgerTokenBundle val)
 
--- | Convert from a Conway-era ledger 'TxOut'.
--- Inline scripts and datums are discarded.
+{- | Convert from a Conway-era ledger 'TxOut'.
+Inline scripts and datums are discarded.
+-}
 fromConwayTxOut :: BabbageTxOut ConwayEra -> W.TxOut
 fromConwayTxOut (BabbageTxOut addr val _ _) =
     W.TxOut (fromLedgerAddress addr) (fromLedgerTokenBundle val)
@@ -292,30 +294,30 @@ fromConwayTxOut (BabbageTxOut addr val _ _) =
 -- | Convert to a Babbage-era ledger 'UTxO'.
 toLedgerUTxOBabbage :: W.UTxO -> UTxO BabbageEra
 toLedgerUTxOBabbage (W.UTxO m) =
-    UTxO
-        $ Map.mapKeys toLedgerTxIn
-        $ Map.map toBabbageTxOut m
+    UTxO $
+        Map.mapKeys toLedgerTxIn $
+            Map.map toBabbageTxOut m
 
 -- | Convert to a Conway-era ledger 'UTxO'.
 toLedgerUTxOConway :: W.UTxO -> UTxO ConwayEra
 toLedgerUTxOConway (W.UTxO m) =
-    UTxO
-        $ Map.mapKeys toLedgerTxIn
-        $ Map.map toConwayTxOut m
+    UTxO $
+        Map.mapKeys toLedgerTxIn $
+            Map.map toConwayTxOut m
 
 -- | Convert from a Babbage-era ledger 'UTxO'.
 fromLedgerUTxOBabbage :: UTxO BabbageEra -> W.UTxO
 fromLedgerUTxOBabbage (UTxO m) =
-    W.UTxO
-        $ Map.mapKeys fromLedgerTxIn
-        $ Map.map fromBabbageTxOut m
+    W.UTxO $
+        Map.mapKeys fromLedgerTxIn $
+            Map.map fromBabbageTxOut m
 
 -- | Convert from a Conway-era ledger 'UTxO'.
 fromLedgerUTxOConway :: UTxO ConwayEra -> W.UTxO
 fromLedgerUTxOConway (UTxO m) =
-    W.UTxO
-        $ Map.mapKeys fromLedgerTxIn
-        $ Map.map fromConwayTxOut m
+    W.UTxO $
+        Map.mapKeys fromLedgerTxIn $
+            Map.map fromConwayTxOut m
 
 --------------------------------------------------------------------------------
 -- PolicyId / AssetName
@@ -363,13 +365,13 @@ toLedgerTimelockScript = \case
             Nothing ->
                 error "toLedgerTimelockScript: invalid key hash"
     CA.RequireAllOf contents ->
-        Scripts.mkRequireAllOfTimelock
-            $ StrictSeq.fromList
-            $ map toLedgerTimelockScript contents
+        Scripts.mkRequireAllOfTimelock $
+            StrictSeq.fromList $
+                map toLedgerTimelockScript contents
     CA.RequireAnyOf contents ->
-        Scripts.mkRequireAnyOfTimelock
-            $ StrictSeq.fromList
-            $ map toLedgerTimelockScript contents
+        Scripts.mkRequireAnyOfTimelock $
+            StrictSeq.fromList $
+                map toLedgerTimelockScript contents
     CA.RequireSomeOf num contents ->
         Scripts.mkRequireMOfTimelock
             (intCast num)
@@ -384,8 +386,8 @@ toLedgerTimelockScript = \case
     convertSlotNo x = SlotNo $ fromMaybe err $ intCastMaybe x
       where
         err =
-            error
-                $ unwords
+            error $
+                unwords
                     [ "toLedgerTimelockScript:"
                     , "Unexpected out of bounds SlotNo"
                     , show x
@@ -406,14 +408,17 @@ toWalletScript tokeyrole tl
         let payload = Crypto.hashToBytes h
         in  CA.RequireSignatureOf (CA.KeyHash (tokeyrole payload) payload)
     | Just contents <- Scripts.getRequireAllOfTimelock tl =
-        CA.RequireAllOf
-            $ map (toWalletScript tokeyrole) $ F.toList contents
+        CA.RequireAllOf $
+            map (toWalletScript tokeyrole) $
+                F.toList contents
     | Just contents <- Scripts.getRequireAnyOfTimelock tl =
-        CA.RequireAnyOf
-            $ map (toWalletScript tokeyrole) $ F.toList contents
+        CA.RequireAnyOf $
+            map (toWalletScript tokeyrole) $
+                F.toList contents
     | Just (num, contents) <- Scripts.getRequireMOfTimelock tl =
-        CA.RequireSomeOf (fromIntegral num)
-            $ map (toWalletScript tokeyrole) $ F.toList contents
+        CA.RequireSomeOf (fromIntegral num) $
+            map (toWalletScript tokeyrole) $
+                F.toList contents
     | Scripts.RequireTimeExpire (SlotNo slot) <- tl =
         CA.ActiveUntilSlot $ fromIntegral slot
     | Scripts.RequireTimeStart (SlotNo slot) <- tl =

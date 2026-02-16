@@ -4,12 +4,6 @@
 module Cardano.Balance.Tx.Balance.CoinSelectionSpec
 where
 
-import Data.Function
-    ( (&)
-    )
-import Generics.SOP
-    ( NP (..)
-    )
 import Cardano.Balance.Tx.Balance.CoinSelection
     ( Selection
     , SelectionOf (..)
@@ -20,6 +14,13 @@ import Cardano.Balance.Tx.Balance.CoinSelection
     , toInternalUTxO
     , toInternalUTxOMap
     )
+import Data.Function
+    ( (&)
+    )
+import Generics.SOP
+    ( NP (..)
+    )
+import qualified Generics.SOP as SOP
 import Test.Hspec
     ( Spec
     , describe
@@ -51,19 +52,11 @@ import Test.Utils.Pretty
     )
 import Prelude
 
-import qualified Cardano.Wallet.Primitive.Types.Address.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.Coin.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W.TokenBundle
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.TokenMap.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxIn as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxIn.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxOut as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxOut.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.UTxO as W
-    ( UTxO (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.UTxO.Gen as W
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive.Gen as W
+
+instance SOP.Generic (SelectionOf change)
+instance SOP.HasDatatypeInfo (SelectionOf change)
 
 spec :: Spec
 spec = describe "Cardano.Wallet.CoinSelectionSpec" $ do
@@ -71,21 +64,21 @@ spec = describe "Cardano.Wallet.CoinSelectionSpec" $ do
         $ describe
             "Conversion between external (wallet) and internal W.UTxOs"
         $ do
-            it "prop_toInternalUTxO_toExternalUTxO"
-                $ prop_toInternalUTxO_toExternalUTxO
-                & property
+            it "prop_toInternalUTxO_toExternalUTxO" $
+                prop_toInternalUTxO_toExternalUTxO
+                    & property
 
-            it "prop_toInternalUTxOMap_toExternalUTxOMap"
-                $ prop_toInternalUTxOMap_toExternalUTxOMap
-                & property
+            it "prop_toInternalUTxOMap_toExternalUTxOMap" $
+                prop_toInternalUTxOMap_toExternalUTxOMap
+                    & property
 
     parallel
         $ describe
             "Conversion between external (wallet) and internal selections"
         $ do
-            it "prop_toInternalSelection_toExternalSelection"
-                $ prop_toInternalSelection_toExternalSelection
-                & property
+            it "prop_toInternalSelection_toExternalSelection" $
+                prop_toInternalSelection_toExternalSelection
+                    & property
 
 --------------------------------------------------------------------------------
 -- Conversion between external (wallet) and internal UTxOs
@@ -132,7 +125,7 @@ genSelection =
     genExtraCoinSource = W.genCoin
     genExtraCoinSink = W.genCoin
     genTxOutCoin =
-        W.TxOut <$> W.genAddress <*> (W.TokenBundle.fromCoin <$> W.genCoin)
+        W.TxOut <$> W.genAddress <*> (W.fromCoin <$> W.genCoin)
 
 shrinkSelection :: Selection -> [Selection]
 shrinkSelection =

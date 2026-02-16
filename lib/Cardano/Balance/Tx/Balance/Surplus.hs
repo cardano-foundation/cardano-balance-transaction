@@ -2,9 +2,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 
--- |
--- Copyright: © 2024 Cardano Foundation
--- License: Apache-2.0
+{- |
+Copyright: © 2024 Cardano Foundation
+License: Apache-2.0
+-}
 module Cardano.Balance.Tx.Balance.Surplus
     ( distributeSurplus
     , TxFeeAndChange (..)
@@ -18,6 +19,9 @@ module Cardano.Balance.Tx.Balance.Surplus
     )
 where
 
+import Cardano.Balance.Tx.Tx
+    ( FeePerByte (..)
+    )
 import Data.Functor
     ( (<&>)
     )
@@ -30,22 +34,21 @@ import Data.Monoid.Monus
 import GHC.Generics
     ( Generic
     )
-import Cardano.Balance.Tx.Tx
-    ( FeePerByte (..)
-    )
 import Prelude
 
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive as W.TxOut
 
--- | Indicates that it's impossible for 'distributeSurplus' to distribute a
--- surplus. As long as the surplus is larger than 'costOfIncreasingCoin', this
--- should never happen.
+{- | Indicates that it's impossible for 'distributeSurplus' to distribute a
+surplus. As long as the surplus is larger than 'costOfIncreasingCoin', this
+should never happen.
+-}
 newtype ErrMoreSurplusNeeded = ErrMoreSurplusNeeded W.Coin
     deriving (Generic, Eq, Show)
 
--- | Small helper record to disambiguate between a fee and change Coin values.
--- Used by 'distributeSurplus'.
+{- | Small helper record to disambiguate between a fee and change Coin values.
+Used by 'distributeSurplus'.
+-}
 data TxFeeAndChange change = TxFeeAndChange
     { fee :: W.Coin
     , change :: change
@@ -65,18 +68,19 @@ mapTxFeeAndChange
 mapTxFeeAndChange mapFee mapChange TxFeeAndChange{fee, change} =
     TxFeeAndChange (mapFee fee) (mapChange change)
 
--- | Calculate the cost of increasing a CBOR-encoded Coin-value by another Coin
--- with the lovelace/byte cost given by the 'FeePolicy'.
---
--- Outputs values in the range of [0, 8 * perByteFee]
---
--- >>> let p = FeePolicy (Quantity 0) (Quantity 44)
---
--- >>> costOfIncreasingCoin p 4294967295 1
--- Coin 176 -- (9 bytes - 5 bytes) * 44 lovelace/byte
---
--- >>> costOfIncreasingCoin p 0 4294967296
--- Coin 352 -- 8 bytes * 44 lovelace/byte
+{- | Calculate the cost of increasing a CBOR-encoded Coin-value by another Coin
+with the lovelace/byte cost given by the 'FeePolicy'.
+
+Outputs values in the range of [0, 8 * perByteFee]
+
+>>> let p = FeePolicy (Quantity 0) (Quantity 44)
+
+>>> costOfIncreasingCoin p 4294967295 1
+Coin 176 -- (9 bytes - 5 bytes) * 44 lovelace/byte
+
+>>> costOfIncreasingCoin p 0 4294967296
+Coin 352 -- 8 bytes * 44 lovelace/byte
+-}
 costOfIncreasingCoin
     :: FeePerByte
     -> W.Coin
@@ -103,35 +107,36 @@ sizeOfCoin (W.Coin c)
     | c >= 24 = W.TxSize 2
     | otherwise = W.TxSize 1
 
--- | Distributes a surplus transaction balance between the given change
--- outputs and the given fee. This function is aware of the fact that
--- any increase in a 'Coin' value could increase the size and fee
--- requirement of a transaction.
---
--- When comparing the original fee and change outputs to the adjusted
--- fee and change outputs, this function guarantees that:
---
---    - The number of the change outputs remains constant;
---
---    - The fee quantity either remains the same or increases.
---
---    - For each change output:
---        - the ada quantity either remains constant or increases.
---        - non-ada quantities remain the same.
---
---    - The surplus is conserved:
---        The total increase in the fee and change ada quantities is
---        exactly equal to the surplus.
---
---    - Any increase in cost is covered:
---        If the total cost has increased by ??c, then the fee value
---        will have increased by at least ??c.
---
--- If the cost of distributing the provided surplus is greater than the
--- surplus itself, the function will return 'ErrMoreSurplusNeeded'. If
--- the provided surplus is greater or equal to
--- @maximumCostOfIncreasingCoin feePolicy@, the function will always
--- return 'Right'.
+{- | Distributes a surplus transaction balance between the given change
+outputs and the given fee. This function is aware of the fact that
+any increase in a 'Coin' value could increase the size and fee
+requirement of a transaction.
+
+When comparing the original fee and change outputs to the adjusted
+fee and change outputs, this function guarantees that:
+
+   - The number of the change outputs remains constant;
+
+   - The fee quantity either remains the same or increases.
+
+   - For each change output:
+       - the ada quantity either remains constant or increases.
+       - non-ada quantities remain the same.
+
+   - The surplus is conserved:
+       The total increase in the fee and change ada quantities is
+       exactly equal to the surplus.
+
+   - Any increase in cost is covered:
+       If the total cost has increased by ??c, then the fee value
+       will have increased by at least ??c.
+
+If the cost of distributing the provided surplus is greater than the
+surplus itself, the function will return 'ErrMoreSurplusNeeded'. If
+the provided surplus is greater or equal to
+@maximumCostOfIncreasingCoin feePolicy@, the function will always
+return 'Right'.
+-}
 distributeSurplus
     :: FeePerByte
     -> W.Coin
@@ -188,13 +193,13 @@ distributeSurplusDeltaWithOneChangeCoin
             -- We calculate the maximum possible fee increase, by assuming the
             -- \**entire** surplus is added to the change.
             extraFee =
-                findFixpointIncreasingFeeBy
-                    $ costOfIncreasingCoin feePolicy change0 surplus
+                findFixpointIncreasingFeeBy $
+                    costOfIncreasingCoin feePolicy change0 surplus
         in
             case surplus </> extraFee of
                 Just extraChange ->
-                    Right
-                        $ TxFeeAndChange
+                    Right $
+                        TxFeeAndChange
                             { fee = extraFee
                             , change = extraChange
                             }
