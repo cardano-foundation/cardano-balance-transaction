@@ -42,6 +42,5 @@ in {
   devShells.default = project.shell;
   inherit project;
   packages.lib = project.hsPkgs.cardano-balance-tx.components.library;
-  packages.unit-tests =
-    project.hsPkgs.cardano-balance-tx.components.tests.unit;
+  packages.unit-tests = project.hsPkgs.cardano-balance-tx.components.tests.unit;
 }
