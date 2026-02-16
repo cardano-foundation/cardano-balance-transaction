@@ -24,7 +24,7 @@ jobs:
         run: nix build .#lib --quiet
 
       - name: Test
-        run: nix run .#unit-tests --quiet
+        run: nix build .#unit-tests --quiet
 
       - name: Fourmolu
         run: nix develop --command fourmolu -m check lib test
