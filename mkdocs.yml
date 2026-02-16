@@ -1,5 +1,5 @@
 site_name: cardano-balance-tx
-site_description: Balancing transactions for the Cardano blockchain
+site_description: Standalone Cardano transaction balancing library
 repo_url: https://github.com/cardano-foundation/cardano-balance-transaction
 theme:
   name: material
@@ -7,6 +7,11 @@ theme:
     scheme: slate
     primary: blue
     accent: light blue
+  features:
+    - navigation.sections
+    - content.code.copy
 nav:
   - Home: index.md
-  - Plan: plan.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - Module Reference: modules.md
