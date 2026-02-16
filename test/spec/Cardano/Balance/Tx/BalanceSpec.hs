@@ -38,17 +38,12 @@ import Cardano.Binary
     , serialize'
     , unsafeDeserialize'
     )
-import Cardano.Crypto.Wallet
-    ( XPrv
-    , toXPub
-    )
 import Cardano.Ledger.Alonzo.Plutus.TxInfo
     ( AlonzoContextError (..)
     )
 import Cardano.Ledger.Api
     ( AllegraEraTxBody (..)
     , AlonzoEraTxBody (..)
-    , BootstrapWitness
     , EraTx (witsTxL)
     , EraTxBody (..)
     , EraTxWits (bootAddrTxWitsL, scriptTxWitsL)
@@ -57,7 +52,6 @@ import Cardano.Ledger.Api
     , TransactionScriptFailure (..)
     , ValidityInterval (..)
     , addrTxOutL
-    , addrTxWitsL
     , allInputsTxBodyF
     , bodyTxL
     , coinTxOutL
@@ -85,9 +79,6 @@ import Cardano.Ledger.Conway.TxInfo
 import Cardano.Ledger.Core
     ( Era
     )
-import Cardano.Ledger.Keys.Bootstrap
-    ( makeBootstrapWitness
-    )
 import Cardano.Ledger.Shelley.API
     ( Credential (..)
     , KeyHash (..)
@@ -103,46 +94,78 @@ import Cardano.Mnemonic
     , entropyToMnemonic
     , mkEntropy
     )
-import Cardano.Wallet.Address.Constants
-    ( maxLengthAddressForByron
+
+import Cardano.Balance.Tx.Balance
+    ( ChangeAddressGen (..)
+    , ErrAssignRedeemers (..)
+    , ErrBalanceTx (..)
+    , ErrBalanceTxInternalError (..)
+    , ErrBalanceTxOutputError (..)
+    , ErrBalanceTxOutputErrorInfo (..)
+    , ErrUpdateTx (..)
+    , PartialTx (..)
+    , Redeemer (..)
+    , StakeKeyDepositLookup
+        ( StakeKeyDepositAssumeCurrent
+        , StakeKeyDepositMap
+        )
+    , TxFeeUpdate (UseNewTxFee)
+    , TxUpdate (..)
+    , UTxOAssumptions (..)
+    , balanceTx
+    , constructUTxOIndex
+    , lookupStakeKeyDeposit
+    , mergeSignedValue
+    , noTxUpdate
+    , splitSignedValue
+    , stakeCredentialsWithRefunds
+    , toWalletUTxO
+    , updateTx
     )
-import Cardano.Wallet.Address.Derivation
-    ( Depth (..)
-    , DerivationType (..)
-    , Index
-    , hex
-    , paymentAddress
+import Cardano.Balance.Tx.Eras
+    ( AnyRecentEra (..)
+    , Babbage
+    , CardanoApiEra
+    , InAnyRecentEra (..)
+    , IsRecentEra (recentEra)
+    , RecentEra (..)
+    , cardanoEraFromRecentEra
+    , shelleyBasedEraFromRecentEra
+    , toInAnyRecentEra
     )
-import Cardano.Wallet.Address.Derivation.Byron
-    ( byronKey
+import Cardano.Balance.Tx.Gen
+    ( mockPParams
     )
-import Cardano.Wallet.Address.Discovery
-    ( GenChange (genChange)
+import Cardano.Balance.Tx.Sign
+    ( KeyWitnessCounts (..)
+    , estimateKeyWitnessCounts
+    , estimateSignedTxMinFee
+    , estimateSignedTxSize
     )
-import Cardano.Wallet.Address.Discovery.Random
-    ( RndState
-    , mkRndState
+import Cardano.Balance.Tx.TimeTranslation
+    ( TimeTranslation
+    , timeTranslationFromEpochInfo
     )
-import Cardano.Wallet.Address.Discovery.Sequential
-    (
+import Cardano.Balance.Tx.Tx
+    ( Address
+    , Coin (..)
+    , Datum (..)
+    , FeePerByte (..)
+    , Tx
+    , TxIn
+    , TxOut
+    , TxOutInRecentEra (..)
+    , UTxO (..)
+    , Value
+    , deserializeTx
+    , fromCardanoApiTx
+    , serializeTx
+    , toCardanoApiTx
+    , unsafeUtxoFromTxOutsInRecentEra
     )
-import Cardano.Wallet.Address.Encoding
-    ( toHDPayloadAddress
-    )
-import Cardano.Wallet.Primitive.NetworkId
-    ( NetworkDiscriminant (..)
-    , NetworkId (..)
-    , SNetworkId (..)
-    , withSNetworkId
-    )
-import Cardano.Wallet.Primitive.Passphrase
-    ( Passphrase
-    )
-import Cardano.Wallet.Primitive.Slotting
-    ( PastHorizonException
-    )
-import Cardano.Wallet.Unsafe
-    ( unsafeFromHex
+import Cardano.Balance.Tx.TxWithUTxO
+    ( pattern TxWithUTxO
+    , type TxWithUTxO
     )
 import Control.Arrow
     ( left
@@ -171,6 +194,11 @@ import Control.Monad.Trans.State.Strict
     )
 import Data.Bifunctor
     ( first
+    )
+import Data.ByteArray.Encoding
+    ( Base (Base16)
+    , convertFromBase
+    , convertToBase
     )
 import Data.ByteString
     ( ByteString
@@ -229,9 +257,6 @@ import Data.Time.Clock.POSIX
 import Data.Tuple
     ( swap
     )
-import Data.Word
-    ( Word8
-    )
 import Fmt
     ( Buildable (..)
     , blockListF
@@ -250,81 +275,7 @@ import GHC.Stack
 import Generics.SOP
     ( NP (Nil)
     )
-import Cardano.Balance.Tx.Eras
-    ( AnyRecentEra (..)
-    , Babbage
-    , CardanoApiEra
-    , InAnyRecentEra (..)
-    , IsRecentEra (recentEra)
-    , RecentEra (..)
-    , cardanoEraFromRecentEra
-    , shelleyBasedEraFromRecentEra
-    , toInAnyRecentEra
-    )
-import Cardano.Balance.Tx.Tx
-    ( Address
-    , Coin (..)
-    , Datum (..)
-    , FeePerByte (..)
-    , Tx
-    , TxIn
-    , TxOut
-    , TxOutInRecentEra (..)
-    , UTxO (..)
-    , Value
-    , deserializeTx
-    , fromCardanoApiTx
-    , serializeTx
-    , toCardanoApiTx
-    , unsafeUtxoFromTxOutsInRecentEra
-    )
-import Cardano.Balance.Tx.Balance
-    ( ChangeAddressGen (..)
-    , ErrAssignRedeemers (..)
-    , ErrBalanceTx (..)
-    , ErrBalanceTxInternalError (..)
-    , ErrBalanceTxOutputError (..)
-    , ErrBalanceTxOutputErrorInfo (..)
-    , ErrUpdateTx (..)
-    , PartialTx (..)
-    , Redeemer (..)
-    , StakeKeyDepositLookup
-        ( StakeKeyDepositAssumeCurrent
-        , StakeKeyDepositMap
-        )
-    , TxFeeUpdate (UseNewTxFee)
-    , TxUpdate (..)
-    , UTxOAssumptions (..)
-    , balanceTx
-    , constructUTxOIndex
-    , lookupStakeKeyDeposit
-    , mergeSignedValue
-    , noTxUpdate
-    , splitSignedValue
-    , stakeCredentialsWithRefunds
-    , toWalletUTxO
-    , updateTx
-    )
-import Cardano.Balance.Tx.Gen
-    ( mockPParams
-    )
-import Cardano.Balance.Tx.Sign
-    ( KeyWitnessCounts (..)
-    , estimateKeyWitnessCounts
-    , estimateSignedTxMinFee
-    , estimateSignedTxSize
-    )
-import Cardano.Balance.Tx.SizeEstimation
-    ( sizeOf_BootstrapWitnesses
-    )
-import Cardano.Balance.Tx.TimeTranslation
-    ( TimeTranslation
-    , timeTranslationFromEpochInfo
-    )
-import Cardano.Balance.Tx.TxWithUTxO
-    ( pattern TxWithUTxO
-    , type TxWithUTxO
-    )
+import qualified Generics.SOP as SOP
 import Numeric.Natural
     ( Natural
     )
@@ -334,6 +285,9 @@ import Ouroboros.Consensus.BlockchainTime.WallClock.Types
     )
 import Ouroboros.Consensus.Config
     ( SecurityParam (..)
+    )
+import Ouroboros.Consensus.HardFork.History
+    ( PastHorizonException
     )
 import Ouroboros.Network.Block
     ( SlotNo (..)
@@ -432,13 +386,15 @@ import qualified Cardano.Address as CA
 import qualified Cardano.Address.Derivation as CA
 import qualified Cardano.Address.Style.Shelley as Shelley
 import qualified Cardano.Api as CardanoApi
-import qualified Cardano.Api.Byron as ByronApi
 import qualified Cardano.Api.Gen as CardanoApi
 import qualified Cardano.Api.Shelley as CardanoApi
-import qualified Cardano.Chain.Common as Byron
-import qualified Cardano.Crypto as CC
-import qualified Cardano.Crypto.Hash.Class as Crypto
-import qualified Cardano.Crypto.Wallet as Crypto.HD
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
+import qualified Cardano.Balance.Tx.Primitive.Gen as W
+import qualified Cardano.Balance.Tx.Tx as Write
+import qualified Cardano.Balance.Tx.TxWithUTxO as TxWithUTxO
+import qualified Cardano.Balance.Tx.TxWithUTxO.Gen as TxWithUTxO
+import qualified Cardano.CoinSelection.Types.TokenBundle as W.TokenBundle
 import qualified Cardano.Ledger.Alonzo.TxWits as Alonzo
 import qualified Cardano.Ledger.Coin as Ledger
 import qualified Cardano.Ledger.Conway.Core as Ledger
@@ -446,31 +402,6 @@ import qualified Cardano.Ledger.Val as Value
 import qualified Cardano.Slotting.EpochInfo as Slotting
 import qualified Cardano.Slotting.Slot as Slotting
 import qualified Cardano.Slotting.Time as Slotting
-import qualified Cardano.Wallet.Address.Derivation.Byron as Byron
-import qualified Cardano.Wallet.Primitive.Ledger.Convert as Convert
-import qualified Cardano.Wallet.Primitive.Types.Address as W
-    ( Address (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Coin as W
-    ( Coin (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Coin.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.Hash as W
-    ( Hash (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W
-    ( TokenBundle
-    )
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle as W.TokenBundle
-import qualified Cardano.Wallet.Primitive.Types.TokenBundle.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.Constraints as W
-    ( TxSize (..)
-    )
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxIn as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxIn.Gen as W
-import qualified Cardano.Wallet.Primitive.Types.Tx.TxOut as W
-    ( TxOut (..)
-    )
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Foldable as F
@@ -480,9 +411,6 @@ import qualified Data.Set as Set
 import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import qualified Cardano.Balance.Tx.Tx as Write
-import qualified Cardano.Balance.Tx.TxWithUTxO as TxWithUTxO
-import qualified Cardano.Balance.Tx.TxWithUTxO.Gen as TxWithUTxO
 import qualified Ouroboros.Consensus.HardFork.History as HF
 import qualified Test.Hspec.Extra as Hspec
 
@@ -502,97 +430,28 @@ spec = do
     spec_estimateSignedTxSize RecentEraBabbage
   where
     forAllRecentEras
-        :: (forall era. IsRecentEra era => RecentEra era -> Spec) -> Spec
+        :: (forall era. (IsRecentEra era) => RecentEra era -> Spec) -> Spec
     forAllRecentEras tests = do
         describe "Conway" $ tests RecentEraConway
         describe "Babbage" $ tests RecentEraBabbage
 
-spec_balanceTx :: forall era. IsRecentEra era => RecentEra era -> Spec
+spec_balanceTx
+    :: forall era. (IsRecentEra era) => RecentEra era -> Spec
 spec_balanceTx era = describe "balanceTx" $ do
     let moreDiscardsAllowed = stdArgs{maxDiscardRatio = 100}
-    it "doesn't balance transactions with existing 'totalCollateral'"
-        $ quickCheckWith moreDiscardsAllowed
-        $ prop_balanceTxExistingTotalCollateral era
+    it "doesn't balance transactions with existing 'totalCollateral'" $
+        quickCheckWith moreDiscardsAllowed $
+            prop_balanceTxExistingTotalCollateral era
 
-    it "doesn't balance transactions with existing 'returnCollateral'"
-        $ quickCheckWith moreDiscardsAllowed
-        $ prop_balanceTxExistingReturnCollateral era
+    it "doesn't balance transactions with existing 'returnCollateral'" $
+        quickCheckWith moreDiscardsAllowed $
+            prop_balanceTxExistingReturnCollateral era
 
-    it "does not balance transactions if no inputs can be created"
-        $ property (prop_balanceTxUnableToCreateInput era)
+    it "does not balance transactions if no inputs can be created" $
+        property (prop_balanceTxUnableToCreateInput era)
 
-    it "produces valid transactions or fails"
-        $ property (prop_balanceTxValid era)
-
-    describe "bootstrap witnesses" $ do
-        -- Used in 'estimateTxSize', and in turn used by coin-selection
-        let coinSelectionEstimatedSize :: Natural -> Natural
-            coinSelectionEstimatedSize = W.unTxSize . sizeOf_BootstrapWitnesses
-
-        let withNoKeyWits tx =
-                tx
-                    & (witsTxL . addrTxWitsL) .~ mempty
-                    & (witsTxL . bootAddrTxWitsL) .~ mempty
-
-        let measuredWitSize :: Tx era -> Natural
-            measuredWitSize tx =
-                fromIntegral
-                    $ serializedSize tx
-                        - serializedSize (withNoKeyWits tx)
-
-        let evaluateMinimumFeeSize :: Tx era -> Natural
-            evaluateMinimumFeeSize tx =
-                fromIntegral
-                    $ Write.unCoin
-                    $ estimateSignedTxMinFee
-                        pp
-                        inputsHaveNoRefScripts
-                        (withNoKeyWits tx)
-                        (KeyWitnessCounts 0 (fromIntegral $ length wits))
-              where
-                wits = tx ^. witsTxL . bootAddrTxWitsL
-
-                -- Dummy PParams to ensure a Coin-delta corresponds to a
-                -- size-delta.
-                pp = Ledger.emptyPParams & set ppMinFeeAL (Ledger.Coin 1)
-
-                -- Dummy UTxO lookup telling the ledger the inputs aren't
-                -- bringing reference scripts into scope
-                inputsHaveNoRefScripts =
-                    utxoPromisingInputsHaveAddress dummyAddr tx
-
-        let evaluateMinimumFeeDerivedWitSize :: Tx era -> Natural
-            evaluateMinimumFeeDerivedWitSize tx =
-                evaluateMinimumFeeSize tx
-                    - evaluateMinimumFeeSize (withNoKeyWits tx)
-
-        it "coin-selection's size estimation == balanceTx's size estimation"
-            $ property
-            $ prop_bootstrapWitnesses era
-            $ \n tx -> do
-                let balanceSize = evaluateMinimumFeeDerivedWitSize tx
-                let csSize = coinSelectionEstimatedSize $ intCast n
-                csSize === balanceSize
-        -- >= would suffice, but we can be stronger
-
-        it "balanceTx's size estimation >= measured serialized size"
-            $ property
-            $ prop_bootstrapWitnesses era
-            $ \n tx -> do
-                let estimated = evaluateMinimumFeeDerivedWitSize tx
-                let measured = measuredWitSize tx
-                let overestimation
-                        | estimated > measured = estimated - measured
-                        | otherwise = 0
-
-                let tabulateOverestimation =
-                        tabulate "overestimation/wit"
-                            $ if n == 0
-                                then [show overestimation <> " (but with no wits)"]
-                                else [show $ overestimation `div` fromIntegral n]
-
-                estimated .>=. measured
-                    & tabulateOverestimation
+    it "produces valid transactions or fails" $
+        property (prop_balanceTxValid era)
 
     balanceTxGoldenSpec era
 
@@ -614,8 +473,8 @@ spec_balanceTx era = describe "balanceTx" $ do
         let nPayments = 10
         let paymentOuts :: [TxOut era]
             paymentOuts =
-                replicate nPayments
-                    $ mkBasicTxOut dummyAddr (ada 1)
+                replicate nPayments $
+                    mkBasicTxOut dummyAddr (ada 1)
 
         let ptx = paymentPartialTx paymentOuts
 
@@ -624,9 +483,9 @@ spec_balanceTx era = describe "balanceTx" $ do
         let nChange = max nPayments 1
         let changeState0 = DummyChangeState 0
         let expectedChange =
-                flip evalState changeState0
-                    $ replicateM nChange
-                    $ state @Identity dummyChangeAddrGen.genChangeAddress
+                flip evalState changeState0 $
+                    replicateM nChange $
+                        state @Identity dummyChangeAddrGen.genChangeAddress
 
         let
             address :: TxOut era -> Address
@@ -635,9 +494,9 @@ spec_balanceTx era = describe "balanceTx" $ do
         let (tx, changeState') =
                 either (error . show) id $ balance' ptx
 
-        it "assigns change addresses as expected"
-            $ map address (outputs tx)
-            `shouldBe` (map address paymentOuts ++ expectedChange)
+        it "assigns change addresses as expected" $
+            map address (outputs tx)
+                `shouldBe` (map address paymentOuts ++ expectedChange)
 
         it "returns a change state that corresponds to the addresses used" $ do
             changeState' `shouldBe` DummyChangeState{nextUnusedIndex = nChange}
@@ -646,9 +505,9 @@ spec_balanceTx era = describe "balanceTx" $ do
         let (out :: TxOut era) = mkBasicTxOut dummyAddr (lovelace 0)
         let (out' :: TxOut era) = mkBasicTxOut dummyAddr (lovelace 866_310)
         let tx =
-                either (error . show) id
-                    $ balance
-                    $ paymentPartialTx [out]
+                either (error . show) id $
+                    balance $
+                        paymentPartialTx [out]
         let outs = F.toList $ tx ^. bodyTxL . outputsTxBodyL
 
         let pp = case era of
@@ -675,24 +534,24 @@ spec_balanceTx era = describe "balanceTx" $ do
 
         it "tries to select 2x the payment amount" $ do
             let tx =
-                    balanceWithDust
-                        $ paymentPartialTx
+                    balanceWithDust $
+                        paymentPartialTx
                             [ mkBasicTxOut dummyAddr (ada 50)
                             ]
             totalOutput <$> tx `shouldBe` Right (Coin 100_000_000)
 
         it "falls back to 1x if out of space" $ do
             let tx =
-                    balanceWithDust
-                        $ paymentPartialTx
+                    balanceWithDust $
+                        paymentPartialTx
                             [ mkBasicTxOut dummyAddr (ada 100)
                             ]
             totalOutput <$> tx `shouldBe` Right (Coin 102_000_000)
 
         it "otherwise fails with ErrBalanceTxMaxSizeLimitExceeded" $ do
             let tx =
-                    balanceWithDust
-                        $ paymentPartialTx
+                    balanceWithDust $
+                        paymentPartialTx
                             [ mkBasicTxOut dummyAddr (ada 200)
                             ]
             tx
@@ -707,19 +566,19 @@ spec_balanceTx era = describe "balanceTx" $ do
 
     describe "stake key deposit lookup" $ do
         let stakeCred =
-                KeyHashObj
-                    $ KeyHash
+                KeyHashObj $
+                    KeyHash
                         "00000000000000000000000000000000000000000000000000000000"
         let partialTxWithRefund :: Coin -> PartialTx era
             partialTxWithRefund r =
                 PartialTx
                     { tx =
-                        mkBasicTx
-                            $ mkBasicTxBody
-                            & certsTxBodyL
-                                .~ StrictSeq.fromList
-                                    [ mkUnRegTxCert stakeCred
-                                    ]
+                        mkBasicTx $
+                            mkBasicTxBody
+                                & certsTxBodyL
+                                    .~ StrictSeq.fromList
+                                        [ mkUnRegTxCert stakeCred
+                                        ]
                     , stakeKeyDeposits =
                         StakeKeyDepositMap $ Map.singleton stakeCred r
                     , extraUTxO = mempty
@@ -745,76 +604,76 @@ spec_balanceTx era = describe "balanceTx" $ do
                 `shouldBe` (refund <-> noRefund)
 
         describe "if missing" $ do
-            describe "using StakeKeyDepositMap mempty"
-                $ it "fails"
-                $ do
-                    let partialTx =
-                            (partialTxWithRefund (Coin 1_000_000))
-                                { stakeKeyDeposits = StakeKeyDepositMap mempty
-                                }
-                    case balance partialTx of
-                        Left ErrBalanceTxUnresolvedRefunds{} -> return ()
-                        Right tx ->
-                            expectationFailure
-                                $ "Expected ErrBalanceTxUnresolvedRefunds; got "
-                                    <> show tx
-                        Left otherErr ->
-                            expectationFailure
-                                $ "Expected ErrBalanceTxUnresolvedRefunds; got "
-                                    <> show otherErr
+            describe "using StakeKeyDepositMap mempty" $
+                it "fails" $
+                    do
+                        let partialTx =
+                                (partialTxWithRefund (Coin 1_000_000))
+                                    { stakeKeyDeposits = StakeKeyDepositMap mempty
+                                    }
+                        case balance partialTx of
+                            Left ErrBalanceTxUnresolvedRefunds{} -> return ()
+                            Right tx ->
+                                expectationFailure $
+                                    "Expected ErrBalanceTxUnresolvedRefunds; got "
+                                        <> show tx
+                            Left otherErr ->
+                                expectationFailure $
+                                    "Expected ErrBalanceTxUnresolvedRefunds; got "
+                                        <> show otherErr
 
-            describe "using StakeKeyDepositAssumeCurrent"
-                $ it "succeeds (but may be wrong)"
-                $ do
-                    let partialTx =
-                            (partialTxWithRefund (Coin 1_000_000))
-                                { stakeKeyDeposits = StakeKeyDepositAssumeCurrent
-                                }
-                    case balance partialTx of
-                        Right tx -> do
-                            ( coin
-                                    . getProducedValue mockPParams (error "no pool regs")
-                                    . view bodyTxL
-                                    $ tx
-                                )
-                                `shouldBe` (adaProduced (Coin 2_000_000))
-                        Left _ -> return ()
+            describe "using StakeKeyDepositAssumeCurrent" $
+                it "succeeds (but may be wrong)" $
+                    do
+                        let partialTx =
+                                (partialTxWithRefund (Coin 1_000_000))
+                                    { stakeKeyDeposits = StakeKeyDepositAssumeCurrent
+                                    }
+                        case balance partialTx of
+                            Right tx -> do
+                                ( coin
+                                        . getProducedValue mockPParams (error "no pool regs")
+                                        . view bodyTxL
+                                        $ tx
+                                    )
+                                    `shouldBe` (adaProduced (Coin 2_000_000))
+                            Left _ -> return ()
 
     describe "when passed unresolved inputs" $ do
         it "fails with ErrBalanceTxUnresolvedInputs" $ do
-            let txin = W.TxIn (W.Hash $ B8.replicate 32 '3') 10
+            let txin = W.TxIn (B8.replicate 32 '3') 10
             -- 1 output, 1 input without utxo entry
             let partialTx :: PartialTx era
                 partialTx =
-                    addExtraTxIns [txin]
-                        $ paymentPartialTx
+                    addExtraTxIns [txin] $
+                        paymentPartialTx
                             [ mkBasicTxOut dummyAddr (ada 1)
                             ]
             balance partialTx
                 `shouldBe` Left
                     ( ErrBalanceTxUnresolvedInputs
                         . NESet.singleton
-                        $ Convert.toLedger txin
+                        $ Convert.toLedgerTxIn txin
                     )
 
-        describe "with redeemers"
-            $ it "fails with ErrBalanceTxUnresolvedInputs"
-            $ do
-                let withNoUTxO :: PartialTx era -> PartialTx era
-                    withNoUTxO ptx = ptx{extraUTxO = Write.UTxO mempty}
+        describe "with redeemers" $
+            it "fails with ErrBalanceTxUnresolvedInputs" $
+                do
+                    let withNoUTxO :: PartialTx era -> PartialTx era
+                        withNoUTxO ptx = ptx{extraUTxO = Write.UTxO mempty}
 
-                balance (withNoUTxO pingPong_2)
-                    `shouldBe` Left
-                        ( ErrBalanceTxUnresolvedInputs
-                            . NESet.singleton
-                            . Convert.toLedger
-                            $ W.TxIn (W.Hash "11111111111111111111111111111111") 0
-                        )
+                    balance (withNoUTxO pingPong_2)
+                        `shouldBe` Left
+                            ( ErrBalanceTxUnresolvedInputs
+                                . NESet.singleton
+                                . Convert.toLedgerTxIn
+                                $ W.TxIn "11111111111111111111111111111111" 0
+                            )
 
     describe "when validity interval is too far in the future" $ do
         let withValidityBeyondHorizon =
-                withValidityInterval
-                    $ ValidityInterval SNothing (SJust beyondHorizon)
+                withValidityInterval $
+                    ValidityInterval SNothing (SJust beyondHorizon)
         describe "with some Plutus redeemers" $ do
             it "fails with TimeTranslationPastHorizon" $ do
                 case left toInAnyRecentEra $ balance (withValidityBeyondHorizon pingPong_2) of
@@ -851,16 +710,16 @@ spec_balanceTx era = describe "balanceTx" $ do
                                     )
                             ) -> return ()
                     other ->
-                        expectationFailure
-                            $ "Expected pastHorizon failure; got " <> show other
+                        expectationFailure $
+                            "Expected pastHorizon failure; got " <> show other
 
         describe "with no redeemers" $ do
             it "succeeds at balancing" $ do
                 case balance (withValidityBeyondHorizon pingPong_1) of
                     Right _tx -> return ()
                     other ->
-                        expectationFailure
-                            $ "Expected (Right tx); got " <> show other
+                        expectationFailure $
+                            "Expected (Right tx); got " <> show other
 
     describe "when a redeemer is missing" $ do
         it "balancing succeeds (currently)" $ do
@@ -879,19 +738,19 @@ spec_balanceTx era = describe "balanceTx" $ do
             case balance (withNoRedeemers pingPong_2) of
                 Right _tx -> pure ()
                 other ->
-                    expectationFailure
-                        $ "Expected (Right tx); got " <> show other
+                    expectationFailure $
+                        "Expected (Right tx); got " <> show other
 
     describe "when a redeemer points to an input that doesn't exist" $ do
         it "fails with ErrAssignRedeemersTargetNotFound" $ do
-            let tid = W.Hash $ B8.replicate 32 '1'
+            let tid = B8.replicate 32 '1'
 
             -- With ix 1 instead of 0, making it point to an input which
             -- doesn't exist in the tx.
             let faultyRedeemer =
                     RedeemerSpending
                         (unsafeFromHex "D87A80")
-                        (Convert.toLedger (W.TxIn tid 1))
+                        (Convert.toLedgerTxIn (W.TxIn tid 1))
 
             let withFaultyRedeemer =
                     over #redeemers $ mapFirst $ const faultyRedeemer
@@ -903,22 +762,22 @@ spec_balanceTx era = describe "balanceTx" $ do
                     )
 
     describe "Merging and splitting signed values" $ do
-        it "prop_mergeSignedValue_invert_swap"
-            $ prop_mergeSignedValue_invert_swap
-            & property
-            & checkCoverage
-        it "prop_splitSignedValue_invert_swap"
-            $ prop_splitSignedValue_invert_swap
-            & property
-            & checkCoverage
-        it "prop_mergeSignedValue_splitSignedValue"
-            $ prop_mergeSignedValue_splitSignedValue
-            & property
-            & checkCoverage
-        it "prop_splitSignedValue_mergeSignedValue"
-            $ prop_splitSignedValue_mergeSignedValue
-            & property
-            & checkCoverage
+        it "prop_mergeSignedValue_invert_swap" $
+            prop_mergeSignedValue_invert_swap
+                & property
+                & checkCoverage
+        it "prop_splitSignedValue_invert_swap" $
+            prop_splitSignedValue_invert_swap
+                & property
+                & checkCoverage
+        it "prop_mergeSignedValue_splitSignedValue" $
+            prop_mergeSignedValue_splitSignedValue
+                & property
+                & checkCoverage
+        it "prop_splitSignedValue_mergeSignedValue" $
+            prop_splitSignedValue_mergeSignedValue
+                & property
+                & checkCoverage
   where
     outputs = F.toList . view (bodyTxL . outputsTxBodyL)
 
@@ -933,14 +792,15 @@ spec_balanceTx era = describe "balanceTx" $ do
     -- Wallet with only small utxos, and enough of them to fill a tx in the
     -- tests below.
     dustWallet = mkTestWallet dustUTxO
+    dustUTxO :: UTxO era
     dustUTxO =
-        UTxO
-            $ Map.fromList
-            $ [ ( Convert.toLedger $ W.TxIn (W.Hash $ B8.replicate 32 '1') ix
-                , mkBasicTxOut dummyAddr (ada 1)
-                )
-              | ix <- [0 .. 500]
-              ]
+        UTxO $
+            Map.fromList $
+                [ ( Convert.toLedgerTxIn $ W.TxIn (B8.replicate 32 '1') ix
+                  , mkBasicTxOut dummyAddr (ada 1)
+                  )
+                | ix <- [0 .. 500]
+                ]
 
     balance =
         testBalanceTx
@@ -951,33 +811,33 @@ spec_balanceTx era = describe "balanceTx" $ do
 
     utxoWithValues values = UTxO $ Map.fromList $ zip ins outs
       where
-        ins = map (Convert.toLedger . W.TxIn dummyHash) [0 ..]
+        ins = map (Convert.toLedgerTxIn . W.TxIn dummyHash) [0 ..]
         outs = map (mkBasicTxOut dummyAddr) values
-        dummyHash = W.Hash $ B8.replicate 32 '0'
+        dummyHash = B8.replicate 32 '0'
 
     utxo :: [Coin] -> UTxO era
     utxo coins = utxoWithValues $ map Value.inject coins
 
     dummyAddr =
-        Convert.toLedgerAddress
-            $ W.Address
-            $ unsafeFromHex
-                "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
+        Convert.toLedgerAddress $
+            W.Address $
+                unsafeFromHex
+                    "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
 
-    totalOutput :: IsRecentEra era => Tx era -> Coin
+    totalOutput :: (IsRecentEra era) => Tx era -> Coin
     totalOutput tx =
         F.foldMap (view coinTxOutL) (view (bodyTxL . outputsTxBodyL) tx)
             <> tx
-            ^. bodyTxL . feeTxBodyL
+                ^. bodyTxL . feeTxBodyL
 
 balanceTxGoldenSpec
-    :: forall era. IsRecentEra era => RecentEra era -> Spec
+    :: forall era. (IsRecentEra era) => RecentEra era -> Spec
 balanceTxGoldenSpec era = describe "balance goldens" $ do
-    it "testPParams"
-        $ let name = "testPParams"
-              dir = goldenDir </> "binary"
-              pparams = mockPParams @era
-          in  Golden
+    it "testPParams" $
+        let name = "testPParams"
+            dir = goldenDir </> "binary"
+            pparams = mockPParams @era
+        in  Golden
                 { output = pparams
                 , encodePretty = show
                 , writeToFile = \fp -> T.writeFile fp . T.pack . toCBORHex
@@ -994,8 +854,8 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
         it "pingPong_2" $ do
             let ptx = pingPong_2
             let tx =
-                    either (error . show) id
-                        $ testBalanceTx
+                    either (error . show) id $
+                        testBalanceTx
                             (mkTestWallet walletUTxO)
                             mockPParams
                             dummyTimeTranslation
@@ -1027,7 +887,7 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
         test "delegate" delegate
         test "1ada-payment" payment
   where
-    toCBORHex :: ToCBOR a => a -> String
+    toCBORHex :: (ToCBOR a) => a -> String
     toCBORHex = B8.unpack . hex . serialize'
 
     goldenDir = $(getTestData) </> "balanceTx" </> eraName
@@ -1087,15 +947,15 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
     utxo :: [Coin] -> UTxO era
     utxo coins = UTxO $ Map.fromList $ zip ins outs
       where
-        ins = map (Convert.toLedger . W.TxIn dummyHash) [0 ..]
+        ins = map (Convert.toLedgerTxIn . W.TxIn dummyHash) [0 ..]
         outs = map (mkBasicTxOut addr . Value.inject) coins
-        dummyHash = W.Hash $ B8.replicate 32 '0'
+        dummyHash = B8.replicate 32 '0'
 
     addr =
-        Convert.toLedger
-            $ W.Address
-            $ unsafeFromHex
-                "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
+        Convert.toLedgerAddress $
+            W.Address $
+                unsafeFromHex
+                    "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
 
     payment :: PartialTx era
     payment =
@@ -1118,8 +978,8 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
                 & certsTxBodyL .~ StrictSeq.fromList certs
 
         dummyStakeKey =
-            KeyHashObj
-                $ KeyHash
+            KeyHashObj $
+                KeyHash
                     "00000000000000000000000000000000000000000000000000000000"
         dummyPool =
             KeyHash
@@ -1130,7 +990,7 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
             ]
 
     minFee
-        :: IsRecentEra era
+        :: (IsRecentEra era)
         => Tx era
         -> UTxO era
         -> Coin
@@ -1142,11 +1002,11 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
             (estimateKeyWitnessCounts u tx mempty)
 
 spec_estimateSignedTxSize
-    :: forall era. IsRecentEra era => RecentEra era -> Spec
+    :: forall era. (IsRecentEra era) => RecentEra era -> Spec
 spec_estimateSignedTxSize _era = describe "estimateSignedTxSize" $ do
     txBinaries <- runIO signedTxTestData
-    describe "equals the binary size of signed txs"
-        $ forAllGoldens txBinaries test
+    describe "equals the binary size of signed txs" $
+        forAllGoldens txBinaries test
   where
     test
         :: String
@@ -1197,8 +1057,8 @@ spec_estimateSignedTxSize _era = describe "estimateSignedTxSize" $ do
            )
         -> Spec
     forAllGoldens goldens f = forM_ goldens $ \(name, bs) ->
-        it name
-            $ let
+        it name $
+            let
                 tx :: Tx era
                 tx = deserializeTx bs
                 msg =
@@ -1206,24 +1066,24 @@ spec_estimateSignedTxSize _era = describe "estimateSignedTxSize" $ do
                         [ B8.unpack $ hex bs
                         , show $ Pretty tx
                         ]
-              in
-                Hspec.counterexample msg $ f name bs tx
+            in
+                counterexample msg $ f name bs tx
 
     -- An address with a vk payment credential. For the test above, this is the
     -- only aspect which matters.
     vkCredAddr =
-        Convert.toLedger
-            $ W.Address
-            $ unsafeFromHex
-                "6000000000000000000000000000000000000000000000000000000000"
+        Convert.toLedgerAddress $
+            W.Address $
+                unsafeFromHex
+                    "6000000000000000000000000000000000000000000000000000000000"
 
     -- This is a short bootstrap address retrieved from
     -- "byron-address-format.md".
     bootAddr =
-        Convert.toLedger
-            $ W.Address
-            $ unsafeFromHex
-                "82d818582183581cba970ad36654d8dd8f74274b733452ddeab9a62a397746be3c42ccdda0001a9026da5b"
+        Convert.toLedgerAddress $
+            W.Address $
+                unsafeFromHex
+                    "82d818582183581cba970ad36654d8dd8f74274b733452ddeab9a62a397746be3c42ccdda0001a9026da5b"
 
     -- With more attributes, the address can be longer. This value was chosen
     -- /experimentally/ to make the tests pass. The ledger has been validating
@@ -1235,13 +1095,14 @@ spec_estimateSignedTxSize _era = describe "estimateSignedTxSize" $ do
     -- txs, we wouldn't need this fuzziness. Related: ADP-2987.
     bootWitsCanBeLongerBy = W.TxSize 45
 
-spec_updateTx :: forall era. IsRecentEra era => RecentEra era -> Spec
+spec_updateTx
+    :: forall era. (IsRecentEra era) => RecentEra era -> Spec
 spec_updateTx _era = describe "updateTx" $ do
     describe "no existing key witnesses" $ do
         txs <- readTestTransactions
         forM_ txs $ \(filepath, tx :: Tx era) -> do
-            prop ("with TxUpdate: " <> filepath)
-                $ prop_updateTx tx
+            prop ("with TxUpdate: " <> filepath) $
+                prop_updateTx tx
 
     describe "existing key witnesses" $ do
         signedTxs <- runIO signedTxTestData
@@ -1281,7 +1142,7 @@ spec_updateTx _era = describe "updateTx" $ do
 
 prop_balanceTxExistingReturnCollateral
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => RecentEra era
     -> SuccessOrFailure (BalanceTxArgs era)
     -> Property
@@ -1308,7 +1169,7 @@ prop_balanceTxExistingReturnCollateral
 
 prop_balanceTxExistingTotalCollateral
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => RecentEra era
     -> SuccessOrFailure (BalanceTxArgs era)
     -> Property
@@ -1347,15 +1208,15 @@ prop_balanceTxExistingTotalCollateral
 --
 prop_balanceTxUnableToCreateInput
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => RecentEra era
     -> Success (BalanceTxArgs era)
     -> Property
 prop_balanceTxUnableToCreateInput
     _era
     (Success balanceTxArgs) =
-        withMaxSuccess 10
-            $ testBalanceTx
+        withMaxSuccess 10 $
+            testBalanceTx
                 (eraseWalletUTxOSet wallet)
                 protocolParams
                 timeTranslation
@@ -1386,7 +1247,7 @@ prop_balanceTxUnableToCreateInput
 --   - Ensure we have coverage for normal plutus contracts
 prop_balanceTxValid
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => RecentEra era
     -> SuccessOrFailure (BalanceTxArgs era)
     -> Property
@@ -1471,22 +1332,22 @@ prop_balanceTxValid
                     let shortfall = view #shortfall err
                         shortfallOfAda = Value.coin shortfall /= mempty
                         shortfallOfNonAdaAssets = not (Value.isAdaOnly shortfall)
-                    counterexample (show err)
-                        $ case (shortfallOfAda, shortfallOfNonAdaAssets) of
+                    counterexample (show err) $
+                        case (shortfallOfAda, shortfallOfNonAdaAssets) of
                             (False, False) ->
                                 -- This case should never occur, as the existence
                                 -- of a shortfall implies that we are short of at
                                 -- least one asset.
                                 property False
                             (True, False) ->
-                                label "shortfall of ada"
-                                    $ property True
+                                label "shortfall of ada" $
+                                    property True
                             (False, True) ->
-                                label "shortfall of non-ada assets"
-                                    $ property True
+                                label "shortfall of non-ada assets" $
+                                    property True
                             (True, True) ->
-                                label "shortfall of both ada and non-ada assets"
-                                    $ property True
+                                label "shortfall of both ada and non-ada assets" $
+                                    property True
                 Left (ErrBalanceTxExistingKeyWitnesses _) ->
                     label "existing key wits" $ property True
                 Left
@@ -1514,7 +1375,7 @@ prop_balanceTxValid
                         let counterexampleText =
                                 unlines
                                     [ "underestimated fee by "
-                                        <> pretty (Convert.toWalletCoin delta)
+                                        <> show (Convert.fromLedgerCoin delta)
                                     , "candidate tx: " <> show (Pretty candidateTx)
                                     , "assuming key witness count: " <> show nWits
                                     ]
@@ -1531,8 +1392,8 @@ prop_balanceTxValid
                 Left ErrBalanceTxUnresolvedRefunds{} ->
                     label "unresolved refunds" $ property True
                 Left err ->
-                    label "other error"
-                        $ counterexample ("balanceTx failed: " <> show err) False
+                    label "other error" $
+                        counterexample ("balanceTx failed: " <> show err) False
       where
         BalanceTxArgs
             { protocolParams
@@ -1680,10 +1541,10 @@ prop_balanceTxValid
           where
             valid :: TxOut era -> Property
             valid out =
-                counterexample msg
-                    $ property
-                    $ not
-                    $ Write.isBelowMinimumCoinForTxOut protocolParams out
+                counterexample msg $
+                    property $
+                        not $
+                            Write.isBelowMinimumCoinForTxOut protocolParams out
               where
                 msg =
                     unwords
@@ -1693,8 +1554,8 @@ prop_balanceTxValid
                         , show out
                         , "\n"
                         , "Suggested ada quantity (may overestimate requirement):"
-                        , show
-                            $ Write.computeMinimumCoinForTxOut
+                        , show $
+                            Write.computeMinimumCoinForTxOut
                                 protocolParams
                                 out
                         ]
@@ -1737,101 +1598,9 @@ prop_balanceTxValid
         outputs :: Tx era -> [TxOut era]
         outputs = F.toList . view (bodyTxL . outputsTxBodyL)
 
-{-# ANN
-    prop_bootstrapWitnesses
-    ("HLint: ignore Eta reduce" :: String)
-    #-}
-prop_bootstrapWitnesses
-    :: forall era
-     . IsRecentEra era
-    => RecentEra era
-    -> (Word8 -> Tx era -> Property)
-    -> Word8
-    -- ^ Number of bootstrap witnesses.
-    --
-    -- Testing with [0, 255] should be sufficient.
-    -> CardanoApi.NetworkId
-    -- ^ Network - will be encoded inside the witness.
-    -> Index 'WholeDomain 'AccountK
-    -- ^ Account index - will be encoded inside the witness.
-    -> Index 'WholeDomain 'CredFromKeyK
-    -- ^ Index for the first of the 'n' addresses.
-    -> Property
-prop_bootstrapWitnesses _era p n net accIx addr0Ix =
-    let
-        -- Start incrementing the ixs upward, and if we reach 'maxBound', loop
-        -- around, to ensure we always have 'n' unique indices.
-        addrIxs =
-            take (fromIntegral n)
-                $ [addr0Ix .. maxBound] ++ filter (< addr0Ix) [minBound .. addr0Ix]
-
-        body = mkBasicTxBody
-
-        wits :: [BootstrapWitness]
-        wits = map (dummyWitForIx body) addrIxs
-
-        tx =
-            mkBasicTx body
-                & (witsTxL . bootAddrTxWitsL) .~ Set.fromList wits
-    in
-        p n tx
-  where
-    rootK = Byron.generateKeyFromSeed dummyMnemonic mempty
-    pwd = mempty
-
-    dummyWitForIx
-        :: TxBody era
-        -> Index 'WholeDomain 'CredFromKeyK
-        -> BootstrapWitness
-    dummyWitForIx body ix =
-        let
-            accK = Byron.deriveAccountPrivateKey pwd rootK accIx
-            addrKeyAtIx i = Byron.deriveAddressPrivateKey pwd accK i
-
-            addrK = addrKeyAtIx $ toEnum $ fromEnum ix
-            addr = case net of
-                CardanoApi.Mainnet ->
-                    paymentAddress SMainnet $ over byronKey toXPub addrK
-                CardanoApi.Testnet _magic ->
-                    -- The choice of network magic here is not important. The
-                    -- size of the witness will not be affected by it. What may
-                    -- affect the size, is the 'CardanoApi.NetworkId' we pass to
-                    -- 'mkByronWitness' above.
-                    withSNetworkId (NTestnet 0) $ \testnet ->
-                        paymentAddress testnet $ over byronKey toXPub addrK
-        in
-            mkByronWitness
-                body
-                net
-                addr
-                (view byronKey addrK, pwd)
-
-    -- TODO [ADP-2675] Avoid duplication with "Shelley.Transaction"
-    -- https://cardanofoundation.atlassian.net/browse/ADP-2675
-    mkByronWitness
-        :: TxBody era
-        -> CardanoApi.NetworkId
-        -> W.Address
-        -> (XPrv, Passphrase "encryption")
-        -> BootstrapWitness
-    mkByronWitness body network addr encryptedKey =
-        makeBootstrapWitness txHash (decrypt encryptedKey) addrAttr
-      where
-        txHash = Crypto.castHash $ Crypto.hashWith serialize' body
-
-        decrypt (xprv, pwd') =
-            CC.SigningKey
-                $ Crypto.HD.xPrvChangePass pwd' BS.empty xprv
-
-        addrAttr =
-            Byron.mkAttributes
-                $ Byron.AddrAttributes
-                    (toHDPayloadAddress addr)
-                    (ByronApi.toByronNetworkMagic network)
-
 prop_updateTx
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Tx era
     -> Set W.TxIn
     -> Set W.TxIn
@@ -1848,8 +1617,8 @@ prop_updateTx tx extraInputs extraCollateral extraOutputs newFee = do
                 , feeUpdate = UseNewTxFee newFee
                 }
     let tx' =
-            either (error . show) id
-                $ updateTx tx extra
+            either (error . show) id $
+                updateTx tx extra
     conjoin
         [ inputs tx'
             === inputs tx
@@ -1857,7 +1626,7 @@ prop_updateTx tx extraInputs extraCollateral extraOutputs newFee = do
         , outputs tx'
             === (outputs tx)
                 <> StrictSeq.fromList (fromWalletTxOut <$> extraOutputs)
-        , fee tx' === Convert.toLedger newFee
+        , fee tx' === Convert.toLedgerCoin newFee
         , collateralIns tx'
             === collateralIns tx
                 <> Set.map fromWalletTxIn extraCollateral
@@ -1916,9 +1685,12 @@ data BalanceTxArgs era = BalanceTxArgs
     }
     deriving stock (Generic, Show)
 
+instance SOP.Generic (BalanceTxArgs era)
+instance SOP.HasDatatypeInfo (BalanceTxArgs era)
+
 -- | Applies the 'balanceTx' function to the given arguments.
 applyBalanceTxArgs
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => BalanceTxArgs era
     -> Either (ErrBalanceTx era) (Tx era)
 applyBalanceTxArgs
@@ -1933,12 +1705,12 @@ newtype Success a = Success a
 newtype SuccessOrFailure a = SuccessOrFailure a
     deriving newtype (Show)
 
-instance IsRecentEra era => Arbitrary (Success (BalanceTxArgs era)) where
+instance (IsRecentEra era) => Arbitrary (Success (BalanceTxArgs era)) where
     arbitrary = coerce genBalanceTxArgsForSuccess
     shrink = coerce shrinkBalanceTxArgsForSuccess
 
 instance
-    IsRecentEra era
+    (IsRecentEra era)
     => Arbitrary (SuccessOrFailure (BalanceTxArgs era))
     where
     arbitrary = coerce genBalanceTxArgsForSuccessOrFailure
@@ -1946,7 +1718,7 @@ instance
 
 genBalanceTxArgsForSuccess
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Gen (BalanceTxArgs era)
 genBalanceTxArgsForSuccess =
     -- For the moment, we use the brute force tactic of repeatedly generating
@@ -1956,7 +1728,7 @@ genBalanceTxArgsForSuccess =
 
 shrinkBalanceTxArgsForSuccess
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => BalanceTxArgs era
     -> [BalanceTxArgs era]
 shrinkBalanceTxArgsForSuccess =
@@ -1965,7 +1737,7 @@ shrinkBalanceTxArgsForSuccess =
 
 genBalanceTxArgsForSuccessOrFailure
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Gen (BalanceTxArgs era)
 genBalanceTxArgsForSuccessOrFailure =
     BalanceTxArgs
@@ -1980,7 +1752,7 @@ genBalanceTxArgsForSuccessOrFailure =
 
 shrinkBalanceTxArgsForSuccessOrFailure
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => BalanceTxArgs era
     -> [BalanceTxArgs era]
 shrinkBalanceTxArgsForSuccessOrFailure =
@@ -1999,9 +1771,10 @@ shrinkBalanceTxArgsForSuccessOrFailure =
 -- Utility types
 --------------------------------------------------------------------------------
 
--- | Encapsulates both a 'ChangeAddressGen s' and the 's' required for the
--- generator. This allows properties like 'prop_balanceTxValid' to
--- easily generate arbitrary change address generators.
+{- | Encapsulates both a 'ChangeAddressGen s' and the 's' required for the
+generator. This allows properties like 'prop_balanceTxValid' to
+easily generate arbitrary change address generators.
+-}
 data AnyChangeAddressGenWithState where
     AnyChangeAddressGenWithState
         :: forall s
@@ -2035,9 +1808,17 @@ data Wallet era
 -- Utility functions
 --------------------------------------------------------------------------------
 
+unsafeFromHex :: ByteString -> ByteString
+unsafeFromHex b = case convertFromBase Base16 b of
+    Left e -> error $ "unsafeFromHex: " <> e
+    Right x -> x
+
+hex :: ByteString -> ByteString
+hex = convertToBase Base16
+
 -- Ideally merge with 'updateTx'
 addExtraTxIns
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => [W.TxIn]
     -> PartialTx era
     -> PartialTx era
@@ -2045,14 +1826,15 @@ addExtraTxIns extraIns =
     #tx . bodyTxL . inputsTxBodyL %~ (<> toLedgerInputs extraIns)
   where
     toLedgerInputs =
-        Set.map Convert.toLedger . Set.fromList
+        Set.map Convert.toLedgerTxIn . Set.fromList
 
--- | Wrapper for testing convenience. Does hide the monad 'm', tracing, and the
--- updated 'changeState'. Does /not/ specify mock values for things like
--- protocol parameters. This is up to the caller to provide.
+{- | Wrapper for testing convenience. Does hide the monad 'm', tracing, and the
+updated 'changeState'. Does /not/ specify mock values for things like
+protocol parameters. This is up to the caller to provide.
+-}
 testBalanceTx
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Wallet era
     -> Write.PParams era
     -> TimeTranslation
@@ -2086,7 +1868,7 @@ testBalanceTx
 -- | Also returns the updated change state
 balanceTxWithDummyChangeState
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => UTxOAssumptions
     -> UTxO era
     -> StdGenSeed
@@ -2095,30 +1877,31 @@ balanceTxWithDummyChangeState
         (ErrBalanceTx era)
         (Tx era, DummyChangeState)
 balanceTxWithDummyChangeState utxoAssumptions utxo seed partialTx =
-    (`evalRand` stdGenFromSeed seed)
-        $ runExceptT
-        $ balanceTx
-            mockPParams
-            dummyTimeTranslation
-            utxoAssumptions
-            utxoIndex
-            dummyChangeAddrGen
-            (DummyChangeState 0)
-            partialTx
+    (`evalRand` stdGenFromSeed seed) $
+        runExceptT $
+            balanceTx
+                mockPParams
+                dummyTimeTranslation
+                utxoAssumptions
+                utxoIndex
+                dummyChangeAddrGen
+                (DummyChangeState 0)
+                partialTx
   where
     utxoIndex = constructUTxOIndex utxo
 
 fromWalletTxIn :: W.TxIn -> TxIn
-fromWalletTxIn = Convert.toLedger
+fromWalletTxIn = Convert.toLedgerTxIn
 
-fromWalletTxOut :: forall era. IsRecentEra era => W.TxOut -> TxOut era
+fromWalletTxOut
+    :: forall era. (IsRecentEra era) => W.TxOut -> TxOut era
 fromWalletTxOut = case recentEra @era of
     RecentEraBabbage -> Convert.toBabbageTxOut
     RecentEraConway -> Convert.toConwayTxOut
 
 hasInsCollateral
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Tx era
     -> Bool
 hasInsCollateral =
@@ -2126,7 +1909,7 @@ hasInsCollateral =
 
 hasReturnCollateral
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Tx era
     -> Bool
 hasReturnCollateral tx =
@@ -2136,7 +1919,7 @@ hasReturnCollateral tx =
 
 hasTotalCollateral
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Tx era
     -> Bool
 hasTotalCollateral tx =
@@ -2144,11 +1927,11 @@ hasTotalCollateral tx =
         SJust _ -> True
         SNothing -> False
 
-mkTestWallet :: IsRecentEra era => UTxO era -> Wallet era
+mkTestWallet :: (IsRecentEra era) => UTxO era -> Wallet era
 mkTestWallet utxo =
     Wallet AllKeyPaymentCredentials utxo dummyShelleyChangeAddressGen
 
-paymentPartialTx :: IsRecentEra era => [TxOut era] -> PartialTx era
+paymentPartialTx :: (IsRecentEra era) => [TxOut era] -> PartialTx era
 paymentPartialTx txouts =
     PartialTx
         (mkBasicTx body)
@@ -2164,7 +1947,7 @@ paymentPartialTx txouts =
 
 serializedSize
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => Tx era
     -> Int
 serializedSize = BS.length . serializeTx
@@ -2175,8 +1958,8 @@ x `shouldBeInclusivelyWithin` (a, b) =
     if a <= x && x <= b
         then pure ()
         else
-            expectationFailure
-                $ unwords
+            expectationFailure $
+                unwords
                     [ show x
                     , "not in the expected interval"
                     , "[" <> show a <> ", " <> show b <> "]"
@@ -2192,7 +1975,7 @@ valueHasNegativeAndPositiveParts v =
     (b1, b2) = splitSignedValue v
 
 withValidityInterval
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => ValidityInterval
     -> PartialTx era
     -> PartialTx era
@@ -2200,7 +1983,7 @@ withValidityInterval vi = #tx . bodyTxL %~ vldtTxBodyL .~ vi
 
 cardanoToWalletTxOut
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => CardanoApi.TxOut CardanoApi.CtxUTxO (CardanoApiEra era)
     -> W.TxOut
 cardanoToWalletTxOut =
@@ -2213,11 +1996,12 @@ cardanoToWalletTxOut =
         RecentEraBabbage -> Convert.fromBabbageTxOut x
         RecentEraConway -> Convert.fromConwayTxOut x
 
-txFee :: IsRecentEra era => Tx era -> Coin
+txFee :: (IsRecentEra era) => Tx era -> Coin
 txFee tx = tx ^. bodyTxL . feeTxBodyL
 
--- | Construct a dummy 'UTxO era' where all inputs of the 'Tx era' resolve to
--- outputs with the given 'Address'.
+{- | Construct a dummy 'UTxO era' where all inputs of the 'Tx era' resolve to
+outputs with the given 'Address'.
+-}
 utxoPromisingInputsHaveAddress
     :: forall era
      . (HasCallStack, IsRecentEra era)
@@ -2259,12 +2043,12 @@ dummyChangeAddrGen =
         :: CA.Index 'CA.Soft 'CA.PaymentK
         -> Write.Address
     addressAtIx ix =
-        Convert.toLedgerAddress
-            $ convert
-            $ Shelley.delegationAddress
-                Shelley.shelleyMainnet
-                (Shelley.PaymentFromExtendedKey paymentK)
-                (Shelley.DelegationFromExtendedKey stakeK)
+        Convert.toLedgerAddress $
+            convert $
+                Shelley.delegationAddress
+                    Shelley.shelleyMainnet
+                    (Shelley.PaymentFromExtendedKey paymentK)
+                    (Shelley.DelegationFromExtendedKey stakeK)
       where
         paymentK =
             CA.toXPub
@@ -2274,37 +2058,15 @@ dummyChangeAddrGen =
 
 dummyMnemonic :: SomeMnemonic
 dummyMnemonic =
-    SomeMnemonic
-        $ either
+    SomeMnemonic $
+        either
             (error . show)
             id
             (entropyToMnemonic @12 <$> mkEntropy "0000000000000000")
 
--- Byron style addresses, corresponding to the change addresses generated by
--- "byron wallets".
-dummyByronChangeAddressGen :: AnyChangeAddressGenWithState
-dummyByronChangeAddressGen =
-    AnyChangeAddressGenWithState
-        dummyChangeAddressGen
-        (mkRndState byronRootK 0)
-  where
-    byronRootK = Byron.generateKeyFromSeed mw mempty
-    mw =
-        SomeMnemonic
-            $ either
-                (error . show)
-                id
-                (entropyToMnemonic @12 <$> mkEntropy "0000000000000000")
-    pwd = mempty
-
-    dummyChangeAddressGen :: ChangeAddressGen (RndState 'Mainnet)
-    dummyChangeAddressGen =
-        ChangeAddressGen
-            (first Convert.toLedgerAddress <$> genChange (byronRootK, pwd))
-            (Convert.toLedgerAddress maxLengthAddressForByron)
-
--- | Shelley base addresses, corresponding to the change addresses generated by
--- normal shelley wallets.
+{- | Shelley base addresses, corresponding to the change addresses generated by
+normal shelley wallets.
+-}
 dummyShelleyChangeAddressGen :: AnyChangeAddressGenWithState
 dummyShelleyChangeAddressGen =
     AnyChangeAddressGenWithState
@@ -2351,24 +2113,24 @@ dummyTimeTranslationWithHorizon horizon =
 mainnetFeePerByte :: FeePerByte
 mainnetFeePerByte = FeePerByte 44
 
-pingPong_1 :: IsRecentEra era => PartialTx era
+pingPong_1 :: (IsRecentEra era) => PartialTx era
 pingPong_1 = PartialTx tx mempty mempty (StakeKeyDepositMap mempty) mempty
   where
     tx =
-        deserializeTx
-            $ unsafeFromHex
-            $ mconcat
-                [ "84a30080018183581d714d72cf569a339a18a7d9302313983f56e0d96cd4"
-                , "5bdcb1d6512dca6a1a001e84805820923918e403bf43c34b4ef6b48eb2ee04ba"
-                , "bed17320d8d1b9ff9ad086e86f44ec0200a10481d87980f5f6"
-                ]
+        deserializeTx $
+            unsafeFromHex $
+                mconcat
+                    [ "84a30080018183581d714d72cf569a339a18a7d9302313983f56e0d96cd4"
+                    , "5bdcb1d6512dca6a1a001e84805820923918e403bf43c34b4ef6b48eb2ee04ba"
+                    , "bed17320d8d1b9ff9ad086e86f44ec0200a10481d87980f5f6"
+                    ]
 
-pingPong_2 :: IsRecentEra era => PartialTx era
+pingPong_2 :: (IsRecentEra era) => PartialTx era
 pingPong_2 =
     PartialTx
         { tx =
-            deserializeTx
-                $ mconcat
+            deserializeTx $
+                mconcat
                     [ unsafeFromHex "84a30081825820"
                     , tid
                     , unsafeFromHex
@@ -2379,22 +2141,22 @@ pingPong_2 =
                 [
                     ( Write.unsafeMkTxIn tid 0
                     , TxOutInRecentEra
-                        ( Write.unsafeAddressFromBytes
-                            $ unsafeFromHex
-                            $ mconcat
-                                [ "714d72cf569a339a18a7d93023139"
-                                , "83f56e0d96cd45bdcb1d6512dca6a"
-                                ]
+                        ( Write.unsafeAddressFromBytes $
+                            unsafeFromHex $
+                                mconcat
+                                    [ "714d72cf569a339a18a7d93023139"
+                                    , "83f56e0d96cd45bdcb1d6512dca6a"
+                                    ]
                         )
                         (ada 2)
-                        ( Write.DatumHash
-                            $ fromJust
-                            $ Write.datumHashFromBytes
-                            $ unsafeFromHex
-                            $ mconcat
-                                [ "923918e403bf43c34b4ef6b48eb2ee04"
-                                , "babed17320d8d1b9ff9ad086e86f44ec"
-                                ]
+                        ( Write.DatumHash $
+                            fromJust $
+                                Write.datumHashFromBytes $
+                                    unsafeFromHex $
+                                        mconcat
+                                            [ "923918e403bf43c34b4ef6b48eb2ee04"
+                                            , "babed17320d8d1b9ff9ad086e86f44ec"
+                                            ]
                         )
                         Nothing
                     )
@@ -2403,17 +2165,18 @@ pingPong_2 =
         , redeemers =
             [ RedeemerSpending
                 (unsafeFromHex "D87A80")
-                (Convert.toLedger (W.TxIn (W.Hash tid) 0))
+                (Convert.toLedgerTxIn (W.TxIn tid 0))
             ]
         , timelockKeyWitnessCounts = mempty
         }
   where
     tid = B8.replicate 32 '1'
 
--- | A collection of signed transaction bytestrings useful for testing.
---
--- These bytestrings can be regenerated by running the integration tests
--- with lib/unit/test/data/signedTxs/genData.patch applied.
+{- | A collection of signed transaction bytestrings useful for testing.
+
+These bytestrings can be regenerated by running the integration tests
+with lib/unit/test/data/signedTxs/genData.patch applied.
+-}
 signedTxTestData :: IO [(FilePath, ByteString)]
 signedTxTestData = do
     let dir = $(getTestData) </> "signedTxs"
@@ -2445,13 +2208,13 @@ instance Arbitrary AnyRecentEra where
             ]
 
 instance
-    CardanoApi.IsCardanoEra era
+    (CardanoApi.IsCardanoEra era)
     => Arbitrary (CardanoApi.AddressInEra era)
     where
     arbitrary = CardanoApi.genAddressInEra CardanoApi.cardanoEra
 
 instance
-    CardanoApi.IsCardanoEra era
+    (CardanoApi.IsCardanoEra era)
     => Arbitrary (CardanoApi.TxOutDatum ctx era)
     where
     arbitrary = CardanoApi.genTxOutDatum CardanoApi.cardanoEra
@@ -2479,15 +2242,6 @@ instance Arbitrary FeePerByte where
     shrink (FeePerByte x) =
         FeePerByte <$> shrinkNatural x
 
-instance Arbitrary (W.Hash "Tx") where
-    arbitrary = do
-        bs <- vectorOf 32 arbitrary
-        pure $ W.Hash $ BS.pack bs
-
-instance Arbitrary (Index 'WholeDomain depth) where
-    arbitrary = arbitraryBoundedEnum
-    shrink = shrinkBoundedEnum
-
 -- At the time of writing, the 'Arbitrary' instance for 'Value' only generates
 -- values without any negative components.
 --
@@ -2501,7 +2255,7 @@ instance Arbitrary (MixedSign Value) where
         genPositive = arbitrary
     shrink (MixedSign v) = MixedSign <$> shrink v
 
-instance IsRecentEra era => Arbitrary (PartialTx era) where
+instance (IsRecentEra era) => Arbitrary (PartialTx era) where
     arbitrary = do
         (ptx :: PartialTx era) <- partialTxFromTxWithUTxO <$> genTxWithUTxO
         let deregCerts = F.toList $ stakeCredentialsWithRefunds $ view #tx ptx
@@ -2533,7 +2287,7 @@ instance IsRecentEra era => Arbitrary (PartialTx era) where
             shrinkTxWithUTxO
 
 partialTxFromTxWithUTxO
-    :: IsRecentEra era => TxWithUTxO era -> PartialTx era
+    :: (IsRecentEra era) => TxWithUTxO era -> PartialTx era
 partialTxFromTxWithUTxO (TxWithUTxO tx extraUTxO) =
     PartialTx
         { tx
@@ -2549,18 +2303,18 @@ partialTxFromTxWithUTxO (TxWithUTxO tx extraUTxO) =
     stakeKeyDeposits = StakeKeyDepositAssumeCurrent
 
 txWithUTxOFromPartialTx
-    :: IsRecentEra era => PartialTx era -> TxWithUTxO era
+    :: (IsRecentEra era) => PartialTx era -> TxWithUTxO era
 txWithUTxOFromPartialTx PartialTx{tx, extraUTxO} =
     TxWithUTxO.constructFiltered tx extraUTxO
 
-genTxWithUTxO :: IsRecentEra era => Gen (TxWithUTxO era)
+genTxWithUTxO :: (IsRecentEra era) => Gen (TxWithUTxO era)
 genTxWithUTxO = TxWithUTxO.generate genTxForBalancing genTxIn genTxOut
 
 shrinkTxWithUTxO
-    :: IsRecentEra era => TxWithUTxO era -> [TxWithUTxO era]
+    :: (IsRecentEra era) => TxWithUTxO era -> [TxWithUTxO era]
 shrinkTxWithUTxO = TxWithUTxO.shrinkWith shrinkTx shrinkUTxOToSubsets
   where
-    shrinkUTxOToSubsets :: IsRecentEra era => UTxO era -> [UTxO era]
+    shrinkUTxOToSubsets :: (IsRecentEra era) => UTxO era -> [UTxO era]
     shrinkUTxOToSubsets = shrinkMapBy UTxO unUTxO shrinkMapToSubmaps
 
 instance Arbitrary StdGenSeed where
@@ -2577,7 +2331,7 @@ instance Arbitrary (DisjointPair W.TokenBundle) where
 instance Arbitrary W.TxIn where
     arbitrary = do
         ix <- scale (`mod` 3) arbitrary
-        txId <- arbitrary
+        txId <- BS.pack <$> vectorOf 32 arbitrary
         pure $ W.TxIn txId ix
 
 instance Arbitrary W.TxOut where
@@ -2590,38 +2344,28 @@ instance Arbitrary W.TxOut where
         | bundle' <- W.shrinkTokenBundleSmallRange bundle
         ]
 
-instance forall era. IsRecentEra era => Arbitrary (Wallet era) where
+instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
     arbitrary =
-        oneof
-            [ Wallet AllKeyPaymentCredentials
-                <$> genWalletUTxO genShelleyVkAddr
-                <*> pure dummyShelleyChangeAddressGen
-            , Wallet AllByronKeyPaymentCredentials
-                <$> genWalletUTxO genByronVkAddr
-                <*> pure dummyByronChangeAddressGen
-            ]
+        Wallet AllKeyPaymentCredentials
+            <$> genWalletUTxO genShelleyVkAddr
+            <*> pure dummyShelleyChangeAddressGen
       where
         genShelleyVkAddr :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))
         genShelleyVkAddr =
-            fmap (CardanoApi.shelleyAddressInEra era)
-                $ CardanoApi.makeShelleyAddress
+            fmap (CardanoApi.shelleyAddressInEra era) $
+                CardanoApi.makeShelleyAddress
                     <$> CardanoApi.genNetworkId
                     <*> CardanoApi.genPaymentCredential -- only vk credentials
                     <*> CardanoApi.genStakeAddressReference
           where
             era = shelleyBasedEraFromRecentEra (recentEra @era)
 
-        genByronVkAddr :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))
-        genByronVkAddr =
-            CardanoApi.byronAddressInEra
-                <$> CardanoApi.genAddressByron
-
         genWalletUTxO
             :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))
             -> Gen (UTxO era)
         genWalletUTxO genAddr =
-            scale (* 2)
-                $ UTxO . Map.fromList <$> listOf genEntry
+            scale (* 2) $
+                UTxO . Map.fromList <$> listOf genEntry
           where
             genEntry = (,) <$> genIn <*> genOut
               where
@@ -2630,8 +2374,8 @@ instance forall era. IsRecentEra era => Arbitrary (Wallet era) where
 
                 genOut :: Gen (TxOut era)
                 genOut =
-                    fmap (fromWalletTxOut . cardanoToWalletTxOut)
-                        $ CardanoApi.TxOut
+                    fmap (fromWalletTxOut . cardanoToWalletTxOut) $
+                        CardanoApi.TxOut
                             <$> genAddr
                             <*> scale (* 2) (CardanoApi.genTxOutValue era)
                             <*> pure CardanoApi.TxOutDatumNone
@@ -2655,7 +2399,7 @@ instance forall era. IsRecentEra era => Arbitrary (Wallet era) where
 
         shrinkEntry _ = []
 
-genTxForBalancing :: forall era. IsRecentEra era => Gen (Tx era)
+genTxForBalancing :: forall era. (IsRecentEra era) => Gen (Tx era)
 genTxForBalancing =
     fromCardanoApiTx <$> CardanoApi.genTxForBalancing cardanoEra
   where
@@ -2664,7 +2408,7 @@ genTxForBalancing =
 genTxIn :: Gen TxIn
 genTxIn = fromWalletTxIn <$> W.genTxIn
 
-genTxOut :: forall era. IsRecentEra era => Gen (TxOut era)
+genTxOut :: forall era. (IsRecentEra era) => Gen (TxOut era)
 genTxOut =
     -- NOTE: genTxOut does not generate quantities larger than
     -- `maxBound :: Word64`, however users could supply these. We
@@ -2685,7 +2429,7 @@ shrinkFee (Ledger.Coin 0) = []
 shrinkFee _ = [Ledger.Coin 0]
 
 shrinkScriptData
-    :: Era (CardanoApi.ShelleyLedgerEra era)
+    :: (Era (CardanoApi.ShelleyLedgerEra era))
     => CardanoApi.TxBodyScriptData era
     -> [CardanoApi.TxBodyScriptData era]
 shrinkScriptData CardanoApi.TxBodyNoScriptData = []
@@ -2709,11 +2453,11 @@ shrinkScriptData
         [] -> error "shrinkScriptData: unexpected empty shrink list"
 
 shrinkSeq
-    :: Foldable t => (a -> [a]) -> t a -> [StrictSeq.StrictSeq a]
+    :: (Foldable t) => (a -> [a]) -> t a -> [StrictSeq.StrictSeq a]
 shrinkSeq shrinkElem =
     map StrictSeq.fromList . shrinkList shrinkElem . F.toList
 
-shrinkSet :: Ord a => (a -> [a]) -> Set a -> [Set a]
+shrinkSet :: (Ord a) => (a -> [a]) -> Set a -> [Set a]
 shrinkSet shrinkElem = map Set.fromList . shrinkList shrinkElem . F.toList
 
 shrinkStrictMaybe :: StrictMaybe a -> [StrictMaybe a]
@@ -2721,13 +2465,13 @@ shrinkStrictMaybe = \case
     SNothing -> []
     SJust _ -> [SNothing]
 
-shrinkTx :: forall era. IsRecentEra era => Tx era -> [Tx era]
+shrinkTx :: forall era. (IsRecentEra era) => Tx era -> [Tx era]
 shrinkTx =
     shrinkMapBy fromCardanoApiTx toCardanoApiTx shrinkCardanoApiTx
   where
     shrinkCardanoApiTx = case recentEra @era of
         RecentEraBabbage -> shrinkTxBabbage
-        RecentEraConway -> \_ -> [] -- no shrinker implemented yet
+        RecentEraConway -> const [] -- no shrinker implemented yet
 
 shrinkTxBabbage
     :: CardanoApi.Tx CardanoApi.BabbageEra
@@ -2827,8 +2571,8 @@ shrinkTxBodyBabbage
 
 shrinkWdrl :: Withdrawals -> [Withdrawals]
 shrinkWdrl (Withdrawals m) =
-    map (Withdrawals . Map.fromList)
-        $ shrinkList shrinkWdrl' (Map.toList m)
+    map (Withdrawals . Map.fromList) $
+        shrinkList shrinkWdrl' (Map.toList m)
   where
     shrinkWdrl' (acc, Ledger.Coin c) =
         [ (acc, Ledger.Coin c')
@@ -2839,12 +2583,13 @@ shrinkWdrl (Withdrawals m) =
 -- Pretty-printing
 --------------------------------------------------------------------------------
 
--- | A convenient wrapper type that allows values of any type with a 'Buildable'
---   instance to be pretty-printed through the 'Show' interface.
+{- | A convenient wrapper type that allows values of any type with a 'Buildable'
+  instance to be pretty-printed through the 'Show' interface.
+-}
 newtype ShowBuildable a = ShowBuildable a
     deriving newtype (Arbitrary)
 
-instance Buildable a => Show (ShowBuildable a) where
+instance (Buildable a) => Show (ShowBuildable a) where
     show (ShowBuildable x) = pretty x
 
 instance Buildable UTxOAssumptions where
@@ -2852,21 +2597,21 @@ instance Buildable UTxOAssumptions where
         AllKeyPaymentCredentials -> "AllKeyPaymentCredentials"
         AllByronKeyPaymentCredentials -> "AllByronKeyPaymentCredentials"
         AllScriptPaymentCredentialsFrom scriptTemplate _scriptLookup ->
-            nameF "AllScriptPaymentCredentialsFrom"
-                $ blockListF [nameF "scriptTemplate" $ build scriptTemplate]
+            nameF "AllScriptPaymentCredentialsFrom" $
+                blockListF [nameF "scriptTemplate" $ build (show scriptTemplate)]
 
 instance Buildable AnyChangeAddressGenWithState where
     build (AnyChangeAddressGenWithState (ChangeAddressGen g maxLengthAddr) s0) =
         blockListF
-            [ nameF "changeAddr0"
-                $ build
-                $ show
-                $ fst
-                $ g s0
-            , nameF "max address length"
-                $ build
-                $ BS.length
-                $ serialiseAddr maxLengthAddr
+            [ nameF "changeAddr0" $
+                build $
+                    show $
+                        fst $
+                            g s0
+            , nameF "max address length" $
+                build $
+                    BS.length $
+                        serialiseAddr maxLengthAddr
             ]
 
 -- CSV with the columns: wallet_balance,(fee,minfee | error)
@@ -2889,13 +2634,13 @@ instance Buildable BalanceTxGolden where
       where
         lovelaceF (Coin c) = fixedF 6 (fromIntegral c / 1e6 :: Double)
 
-instance IsRecentEra era => Buildable (Wallet era) where
+instance (IsRecentEra era) => Buildable (Wallet era) where
     build (Wallet assumptions utxo changeAddressGen) =
-        nameF "Wallet"
-            $ mconcat
+        nameF "Wallet" $
+            mconcat
                 [ nameF "assumptions" $ build assumptions
                 , nameF "changeAddressGen" $ build changeAddressGen
-                , nameF "utxo" $ pretty $ toWalletUTxO utxo
+                , nameF "utxo" $ build $ show $ toWalletUTxO utxo
                 ]
 
 --------------------------------------------------------------------------------

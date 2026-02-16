@@ -5,9 +5,10 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
--- |
--- Copyright: © 2022 IOHK
--- License: Apache-2.0
+{- |
+Copyright: © 2022 IOHK
+License: Apache-2.0
+-}
 module Cardano.Balance.Tx.Gen
     ( genDatumHash
     , mockPParams
@@ -20,6 +21,16 @@ import Cardano.Api.Ledger
     , PParams
     , PParamsHKD
     , UpgradeConwayPParams (..)
+    )
+import Cardano.Balance.Tx.Eras
+    ( Babbage
+    , Conway
+    , IsRecentEra (..)
+    , RecentEra (..)
+    )
+import Cardano.Balance.Tx.Tx
+    ( DatumHash
+    , datumHashFromBytes
     )
 import Cardano.Ledger.Alonzo.PParams
     ( OrdExUnits (..)
@@ -57,16 +68,6 @@ import Data.Maybe
 import Data.Ratio
     ( (%)
     )
-import Cardano.Balance.Tx.Eras
-    ( Babbage
-    , Conway
-    , IsRecentEra (..)
-    , RecentEra (..)
-    )
-import Cardano.Balance.Tx.Tx
-    ( DatumHash
-    , datumHashFromBytes
-    )
 import Test.QuickCheck
     ( Gen
     , arbitrary
@@ -91,10 +92,11 @@ genDatumHash =
 -- PParams
 --------------------------------------------------------------------------------
 
--- | We try to use similar parameters to mainnet where it matters (in particular
--- fees, execution unit prices, and the cost model.)
+{- | We try to use similar parameters to mainnet where it matters (in particular
+fees, execution unit prices, and the cost model.)
+-}
 mockPParams
-    :: forall era. IsRecentEra era => PParams era
+    :: forall era. (IsRecentEra era) => PParams era
 mockPParams = case recentEra @era of
     RecentEraBabbage -> unsafeWrap babbagePParams
     RecentEraConway -> unsafeWrap conwayPParams
@@ -198,12 +200,12 @@ mockPParams = case recentEra @era of
     ada :: Coin
     ada = Coin 1_000_000
 
-    unsafeBoundRational :: BoundedRational r => Rational -> r
+    unsafeBoundRational :: (BoundedRational r) => Rational -> r
     unsafeBoundRational x = fromMaybe err $ boundRational x
       where
         err =
-            error
-                $ unwords
+            error $
+                unwords
                     [ "unsafeBoundRational:"
                     , show x
                     , "out of bounds"
@@ -566,8 +568,8 @@ babbageCostModels = either (error . show) id $ do
 {- HLINT ignore conwayPlutusV3CostModel "Use underscore" -}
 conwayPlutusV3CostModel :: CostModel
 conwayPlutusV3CostModel =
-    either (error . show) id
-        $ mkCostModel
+    either (error . show) id $
+        mkCostModel
             PlutusV3
             [ 100788
             , 420

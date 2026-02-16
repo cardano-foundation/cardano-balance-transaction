@@ -1,23 +1,23 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 
--- |
--- Copyright: © 2024 Cardano Foundation
--- License: Apache-2.0
---
--- Lightweight primitive types for transaction balancing, inlined
--- from @cardano-wallet-primitive@.
---
--- Intended to be imported qualified as @W@:
---
--- @
--- import qualified Cardano.Balance.Tx.Primitive as W
--- @
+{- |
+Copyright: © 2024 Cardano Foundation
+License: Apache-2.0
+
+Lightweight primitive types for transaction balancing, inlined
+from @cardano-wallet-primitive@.
+
+Intended to be imported qualified as @W@:
+
+@
+import qualified Cardano.Balance.Tx.Primitive as W
+@
+-}
 module Cardano.Balance.Tx.Primitive
     ( -- * Value types (re-exported from cardano-coin-selection)
       Coin (..)
@@ -46,6 +46,7 @@ module Cardano.Balance.Tx.Primitive
 
       -- * Constants
     , txOutMaxCoin
+    , txOutMinCoin
     , txOutMaxTokenQuantity
 
       -- * Collateral
@@ -53,17 +54,20 @@ module Cardano.Balance.Tx.Primitive
 
       -- * Coin utilities
     , unsafeToWord64
+    , toWord64Maybe
     , unsafeFromIntegral
 
       -- * TokenBundle accessors
     , getCoin
     , getAssets
+    , setCoin
     , fromCoin
     , Flat (..)
 
       -- * TxOut accessors
     , coin
     , addCoin
+    , subtractCoin
 
       -- * TokenMap re-exports
     , toFlatList
@@ -133,7 +137,7 @@ import qualified Data.Set as Set
 --------------------------------------------------------------------------------
 
 -- | Transaction size in bytes.
-newtype TxSize = TxSize { unTxSize :: Natural }
+newtype TxSize = TxSize {unTxSize :: Natural}
     deriving stock (Eq, Ord, Show)
     deriving newtype (Num)
 
@@ -148,7 +152,7 @@ instance Monoid TxSize where
 --------------------------------------------------------------------------------
 
 -- | A serialized Cardano address.
-newtype Address = Address { unAddress :: ByteString }
+newtype Address = Address {unAddress :: ByteString}
     deriving stock (Eq, Ord, Show, Generic)
     deriving newtype (NFData)
 
@@ -194,12 +198,19 @@ addCoin :: Coin -> TxOut -> TxOut
 addCoin c TxOut{address, tokens = TokenBundle c0 tm} =
     TxOut address (TokenBundle (c0 <> c) tm)
 
+-- | Subtract ada from a TxOut (clamped to zero).
+subtractCoin :: Coin -> TxOut -> TxOut
+subtractCoin (Coin delta) TxOut{address, tokens = TokenBundle (Coin c0) tm} =
+    TxOut
+        address
+        (TokenBundle (Coin (if c0 >= delta then c0 - delta else 0)) tm)
+
 --------------------------------------------------------------------------------
 -- UTxO
 --------------------------------------------------------------------------------
 
 -- | A set of unspent transaction outputs.
-newtype UTxO = UTxO { unUTxO :: Map TxIn TxOut }
+newtype UTxO = UTxO {unUTxO :: Map TxIn TxOut}
     deriving stock (Eq, Show)
 
 --------------------------------------------------------------------------------
@@ -209,6 +220,10 @@ newtype UTxO = UTxO { unUTxO :: Map TxIn TxOut }
 -- | Maximum coin for a transaction output (~45B ADA).
 txOutMaxCoin :: Coin
 txOutMaxCoin = Coin 45_000_000_000_000_000
+
+-- | Minimum coin for a transaction output.
+txOutMinCoin :: Coin
+txOutMinCoin = Coin 0
 
 -- | Maximum token quantity for a transaction output.
 txOutMaxTokenQuantity :: TokenQuantity
@@ -236,6 +251,12 @@ unsafeToWord64 (Coin n)
     | otherwise =
         fromIntegral n
 
+-- | Safe conversion to 'Word64'. Returns 'Nothing' on overflow.
+toWord64Maybe :: Coin -> Maybe Word64
+toWord64Maybe (Coin n)
+    | n > fromIntegral (maxBound :: Word64) = Nothing
+    | otherwise = Just (fromIntegral n)
+
 -- | Unsafe conversion from 'Integer'. Errors on negative values.
 unsafeFromIntegral :: Integer -> Coin
 unsafeFromIntegral n
@@ -255,6 +276,10 @@ getAssets :: TokenBundle -> Set AssetId
 getAssets (TokenBundle _ tm) =
     Set.fromList $ map fst $ CS.TokenMap.toFlatList tm
 
+-- | Set the coin component of a 'TokenBundle'.
+setCoin :: TokenBundle -> Coin -> TokenBundle
+setCoin (TokenBundle _ tm) c = TokenBundle c tm
+
 -- | Create a 'TokenBundle' from a 'Coin' (no native assets).
 fromCoin :: Coin -> TokenBundle
 fromCoin c = TokenBundle c mempty
@@ -265,7 +290,8 @@ newtype Flat = Flat TokenBundle
 
 instance Buildable Flat where
     build (Flat (TokenBundle (Coin c) tm)) =
-        build (show c) <> " lovelace + "
+        build (show c)
+            <> " lovelace + "
             <> build (show (length (CS.TokenMap.toFlatList tm)))
             <> " assets"
 

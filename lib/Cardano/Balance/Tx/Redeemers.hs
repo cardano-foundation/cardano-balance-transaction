@@ -12,17 +12,34 @@
 
 {- HLINT ignore "Use <$>" -}
 
--- |
--- Copyright: © 2023 IOHK
--- License: Apache-2.0
---
--- Module containing 'assignScriptRedeemers'
+{- |
+Copyright: © 2023 IOHK
+License: Apache-2.0
+
+Module containing 'assignScriptRedeemers'
+-}
 module Cardano.Balance.Tx.Redeemers
     ( assignScriptRedeemers
     , ErrAssignRedeemers (..)
     , Redeemer (..)
     ) where
 
+import Cardano.Balance.Tx.Eras
+    ( IsRecentEra (..)
+    , RecentEra (..)
+    )
+import Cardano.Balance.Tx.TimeTranslation
+    ( TimeTranslation
+    , epochInfo
+    , systemStartTime
+    )
+import Cardano.Balance.Tx.Tx
+    ( PParams
+    , PolicyId
+    , RewardAccount
+    , TxIn
+    , UTxO
+    )
 import Cardano.Ledger.Api
     ( AsItem (..)
     , TransactionScriptFailure
@@ -86,22 +103,6 @@ import Fmt
 import GHC.Generics
     ( Generic
     )
-import Cardano.Balance.Tx.Eras
-    ( IsRecentEra (..)
-    , RecentEra (..)
-    )
-import Cardano.Balance.Tx.Tx
-    ( PParams
-    , PolicyId
-    , RewardAccount
-    , TxIn
-    , UTxO
-    )
-import Cardano.Balance.Tx.TimeTranslation
-    ( TimeTranslation
-    , epochInfo
-    , systemStartTime
-    )
 import Prelude
 
 import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
@@ -128,15 +129,15 @@ data ErrAssignRedeemers era
     deriving (Generic)
 
 deriving instance
-    Eq (TransactionScriptFailure era)
+    (Eq (TransactionScriptFailure era))
     => Eq (ErrAssignRedeemers era)
 deriving instance
-    Show (TransactionScriptFailure era)
+    (Show (TransactionScriptFailure era))
     => Show (ErrAssignRedeemers era)
 
 assignScriptRedeemers
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => PParams era
     -> TimeTranslation
     -> UTxO era
@@ -240,9 +241,9 @@ assignScriptRedeemers pparams timeTranslation utxo redeemers tx = do
                 rdmrs
                 exUnits
 
-        pure
-            $ ledgerTx
-            & (witsTxL . rdmrsTxWitsL) .~ (Alonzo.Redeemers rdmrs')
+        pure $
+            ledgerTx
+                & (witsTxL . rdmrsTxWitsL) .~ (Alonzo.Redeemers rdmrs')
 
     assignUnits
         :: (dat, Alonzo.ExUnits)
@@ -298,7 +299,7 @@ redeemerData = \case
     RedeemerRewarding bytes _ -> bytes
 
 toScriptPurpose
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => Redeemer
     -> Alonzo.PlutusPurpose AsItem era
 toScriptPurpose = \case
@@ -311,7 +312,7 @@ toScriptPurpose = \case
 
 mkSpendingPurpose
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => AsItem Word32 TxIn
     -> Alonzo.PlutusPurpose AsItem era
 mkSpendingPurpose = case recentEra @era of
@@ -320,7 +321,7 @@ mkSpendingPurpose = case recentEra @era of
 
 mkMintingPurpose
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => AsItem Word32 PolicyId
     -> Alonzo.PlutusPurpose AsItem era
 mkMintingPurpose = case recentEra @era of
@@ -329,7 +330,7 @@ mkMintingPurpose = case recentEra @era of
 
 mkRewardingPurpose
     :: forall era
-     . IsRecentEra era
+     . (IsRecentEra era)
     => AsItem Word32 RewardAccount
     -> Alonzo.PlutusPurpose AsItem era
 mkRewardingPurpose = case recentEra @era of

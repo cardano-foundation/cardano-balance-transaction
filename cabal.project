@@ -58,4 +58,4 @@ package cardano-coin-selection
   tests: False
 
 package cardano-balance-tx
-  tests: False
+  tests: True

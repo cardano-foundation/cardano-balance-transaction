@@ -8,20 +8,21 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
--- |
--- Copyright: © 2022 IOHK
--- License: Apache-2.0
---
--- This module provides a wallet-specific interface for coin selection.
---
--- Coin selection handles the following responsibilities:
---
---  - selecting inputs from the UTxO set to pay for user-specified outputs;
---  - selecting inputs from the UTxO set to pay for collateral;
---  - producing change outputs to return excess value to the wallet;
---  - balancing a selection to pay for the transaction fee.
---
--- Use the 'performSelection' function to perform a coin selection.
+{- |
+Copyright: © 2022 IOHK
+License: Apache-2.0
+
+This module provides a wallet-specific interface for coin selection.
+
+Coin selection handles the following responsibilities:
+
+ - selecting inputs from the UTxO set to pay for user-specified outputs;
+ - selecting inputs from the UTxO set to pay for collateral;
+ - producing change outputs to return excess value to the wallet;
+ - balancing a selection to pay for the transaction fee.
+
+Use the 'performSelection' function to perform a coin selection.
+-}
 module Cardano.Balance.Tx.Balance.CoinSelection
     ( -- * Selection contexts
       WalletSelectionContext
@@ -70,6 +71,9 @@ module Cardano.Balance.Tx.Balance.CoinSelection
     )
 where
 
+import Cardano.Balance.Tx.Primitive
+    ( asCollateral
+    )
 import Cardano.CoinSelection
     ( SelectionCollateralError (..)
     , SelectionCollateralRequirement (..)
@@ -86,9 +90,6 @@ import Cardano.CoinSelection.Size
     )
 import Cardano.CoinSelection.UTxOSelection
     ( UTxOSelection
-    )
-import Cardano.Balance.Tx.Primitive
-    ( asCollateral
     )
 import Control.Arrow
     ( first
@@ -129,6 +130,9 @@ import Numeric.Natural
     )
 import Prelude
 
+import qualified Cardano.Balance.Tx.Primitive as W
+import qualified Cardano.Balance.Tx.Primitive as W.TokenBundle
+import qualified Cardano.Balance.Tx.Primitive as W.TokenMap
 import qualified Cardano.CoinSelection as Internal
 import qualified Cardano.CoinSelection.Context as SC
 import qualified Cardano.CoinSelection.Types.AssetId as CS
@@ -156,9 +160,6 @@ import qualified Cardano.CoinSelection.Types.TokenPolicyId as CS
 import qualified Cardano.CoinSelection.Types.TokenQuantity as CS
     ( TokenQuantity (..)
     )
-import qualified Cardano.Balance.Tx.Primitive as W
-import qualified Cardano.Balance.Tx.Primitive as W.TokenBundle
-import qualified Cardano.Balance.Tx.Primitive as W.TokenMap
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -216,39 +217,44 @@ toInternalUTxO' f (i, W.TxOut a b) = (WalletUTxO i a, f b)
 -- Selection constraints
 --------------------------------------------------------------------------------
 
--- | Specifies all constraints required for coin selection.
---
--- Selection constraints:
---
---    - are dependent on the current set of protocol parameters.
---
---    - are not specific to a given selection.
---
---    - place limits on the coin selection algorithm, enabling it to produce
---      selections that are acceptable to the ledger.
+{- | Specifies all constraints required for coin selection.
+
+Selection constraints:
+
+   - are dependent on the current set of protocol parameters.
+
+   - are not specific to a given selection.
+
+   - place limits on the coin selection algorithm, enabling it to produce
+     selections that are acceptable to the ledger.
+-}
 data SelectionConstraints = SelectionConstraints
     { tokenBundleSizeAssessor
         :: TokenBundleSizeAssessor
-    -- ^ Assesses the size of a token bundle relative to the upper limit of
-    -- what can be included in a transaction output.
+    {- ^ Assesses the size of a token bundle relative to the upper limit of
+    what can be included in a transaction output.
+    -}
     , computeMinimumAdaQuantity
         :: W.Address -> W.TokenMap -> W.Coin
     -- ^ Computes the minimum ada quantity required for a given output.
     , isBelowMinimumAdaQuantity
         :: W.Address -> W.TokenBundle -> Bool
-    -- ^ Returns 'True' if the given 'TokenBundle' has a 'Coin' value that is
-    -- below the minimum required.
+    {- ^ Returns 'True' if the given 'TokenBundle' has a 'Coin' value that is
+    below the minimum required.
+    -}
     , computeMinimumCost
         :: SelectionSkeleton -> W.Coin
     -- ^ Computes the minimum cost of a given selection skeleton.
     , maximumCollateralInputCount
         :: Int
-    -- ^ Specifies an inclusive upper bound on the number of unique inputs
-    -- that can be selected as collateral.
+    {- ^ Specifies an inclusive upper bound on the number of unique inputs
+    that can be selected as collateral.
+    -}
     , minimumCollateralPercentage
         :: Natural
-    -- ^ Specifies the minimum required amount of collateral as a
-    -- percentage of the total transaction fee.
+    {- ^ Specifies the minimum required amount of collateral as a
+    percentage of the total transaction fee.
+    -}
     , maximumLengthChangeAddress
         :: W.Address
     }
@@ -301,18 +307,20 @@ data SelectionParams = SelectionParams
     -- ^ Specifies the collateral requirement for this selection.
     , utxoAvailableForCollateral
         :: !(Map WalletUTxO W.TokenBundle)
-    -- ^ Specifies a set of UTxOs that are available for selection as
-    -- collateral inputs.
-    --
-    -- This set is allowed to intersect with 'utxoAvailableForInputs',
-    -- since the ledger does not require that these sets are disjoint.
+    {- ^ Specifies a set of UTxOs that are available for selection as
+    collateral inputs.
+
+    This set is allowed to intersect with 'utxoAvailableForInputs',
+    since the ledger does not require that these sets are disjoint.
+    -}
     , utxoAvailableForInputs
         :: !(UTxOSelection WalletUTxO)
-    -- ^ Specifies a set of UTxOs that are available for selection as
-    -- ordinary inputs and optionally, a subset that has already been
-    -- selected.
-    --
-    -- Further entries from this set will be selected to cover any deficit.
+    {- ^ Specifies a set of UTxOs that are available for selection as
+    ordinary inputs and optionally, a subset that has already been
+    selected.
+
+    Further entries from this set will be selected to cover any deficit.
+    -}
     , selectionStrategy
         :: SelectionStrategy
     -- ^ Specifies which selection strategy to use. See 'SelectionStrategy'.
@@ -359,15 +367,16 @@ toInternalSelectionParams SelectionParams{..} =
 -- Selection skeletons
 --------------------------------------------------------------------------------
 
--- | A skeleton selection that can be used to estimate the cost of a final
---   selection.
---
--- Change outputs are deliberately stripped of their asset quantities, as the
--- fee estimation function must be agnostic to the magnitudes of these
--- quantities.
---
--- Increasing or decreasing the quantity of a particular asset in a change
--- output must not change the estimated cost of a selection.
+{- | A skeleton selection that can be used to estimate the cost of a final
+  selection.
+
+Change outputs are deliberately stripped of their asset quantities, as the
+fee estimation function must be agnostic to the magnitudes of these
+quantities.
+
+Increasing or decreasing the quantity of a particular asset in a change
+output must not change the estimated cost of a selection.
+-}
 data SelectionSkeleton = SelectionSkeleton
     { skeletonInputCount
         :: !Int
@@ -425,11 +434,12 @@ data SelectionOf change = Selection
     }
     deriving (Generic, Eq, Show)
 
-instance NFData change => NFData (SelectionOf change)
+instance (NFData change) => NFData (SelectionOf change)
 
--- | The default type of selection.
---
--- In this type of selection, change values do not have addresses assigned.
+{- | The default type of selection.
+
+In this type of selection, change values do not have addresses assigned.
+-}
 type Selection = SelectionOf W.TokenBundle
 
 toExternalSelection
@@ -484,16 +494,17 @@ toInternalSelection getChangeBundle Selection{..} =
 -- Performing a selection
 --------------------------------------------------------------------------------
 
--- | Performs a coin selection.
---
--- This function has the following responsibilities:
---
---  - selecting inputs from the UTxO set to pay for user-specified outputs;
---  - selecting inputs from the UTxO set to pay for collateral;
---  - producing change outputs to return excess value to the wallet;
---  - balancing a selection to pay for the transaction fee.
---
--- See 'Internal.performSelection' for more details.
+{- | Performs a coin selection.
+
+This function has the following responsibilities:
+
+ - selecting inputs from the UTxO set to pay for user-specified outputs;
+ - selecting inputs from the UTxO set to pay for collateral;
+ - producing change outputs to return excess value to the wallet;
+ - balancing a selection to pay for the transaction fee.
+
+See 'Internal.performSelection' for more details.
+-}
 performSelection
     :: forall m
      . (HasCallStack, MonadRandom m)

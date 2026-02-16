@@ -7,6 +7,17 @@
 
 module Cardano.Balance.Tx.TxSpec where
 
+import Cardano.Balance.Tx.Eras
+    ( AnyRecentEra
+    , Babbage
+    , Conway
+    )
+import Cardano.Balance.Tx.Tx
+    ( computeMinimumCoinForTxOut
+    , datumHashFromBytes
+    , datumHashToBytes
+    , isBelowMinimumCoinForTxOut
+    )
 import Cardano.Ledger.Api
     ( PParams
     , coinTxOutL
@@ -19,18 +30,7 @@ import Control.Lens
 import Data.Default
     ( Default (..)
     )
-import Cardano.Balance.Tx.Eras
-    ( AnyRecentEra
-    , Babbage
-    , Conway
-    )
-import Cardano.Balance.Tx.Tx
-    ( computeMinimumCoinForTxOut
-    , datumHashFromBytes
-    , datumHashToBytes
-    , isBelowMinimumCoinForTxOut
-    )
-import Test.Cardano.Ledger.Alonzo.Serialisation.Generators
+import Test.Cardano.Ledger.Alonzo.Arbitrary
     (
     )
 import Test.Cardano.Ledger.Babbage.Arbitrary
@@ -79,11 +79,11 @@ spec = do
                 ]
 
     describe "DatumHash" $ do
-        it "datumHashFromBytes . datumHashToBytes == Just"
-            $ property
-            $ \h -> do
-                let f = datumHashFromBytes . datumHashToBytes
-                f h === Just h
+        it "datumHashFromBytes . datumHashToBytes == Just" $
+            property $
+                \h -> do
+                    let f = datumHashFromBytes . datumHashToBytes
+                    f h === Just h
 
         describe "datumHashFromBytes goldens" $ do
             it "32 bytes -> Just" $ do
@@ -138,34 +138,36 @@ instance Arbitrary AnyRecentEra where
 -- Helpers
 --------------------------------------------------------------------------------
 
--- | Allows 'testIsomorphism' to be called more conveniently when short on
--- horizontal space, compared to a multiline "(a -> b, String)".
---
--- @@
---      (NamedFun
---          fun
---          "fun")
--- @@
---
--- vs
---
--- @@
---      ( fun
---      , "fun"
---      )
--- @@
+{- | Allows 'testIsomorphism' to be called more conveniently when short on
+horizontal space, compared to a multiline "(a -> b, String)".
+
+@@
+     (NamedFun
+         fun
+         "fun")
+@@
+
+vs
+
+@@
+     ( fun
+     , "fun"
+     )
+@@
+-}
 data NamedFun a b = NamedFun (a -> b) String
 
--- | Tests @f . g == id@ and @g . f == id@
---
--- @@
---                 f
---      ┌───┐ ─────────▶ ┌───┐
---      │ a │            │ b │
---      │   │            │   │
---      └───┘ ◀───────── └───┘
---                 g
--- @@
+{- | Tests @f . g == id@ and @g . f == id@
+
+@@
+                f
+     ┌───┐ ─────────▶ ┌───┐
+     │ a │            │ b │
+     │   │            │   │
+     └───┘ ◀───────── └───┘
+                g
+@@
+-}
 testIsomorphism
     :: (Arbitrary a, Arbitrary b, Show a, Show b, Eq a, Eq b)
     => NamedFun a b

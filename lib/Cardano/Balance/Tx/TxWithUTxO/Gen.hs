@@ -5,11 +5,12 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
--- |
--- Copyright: © 2024 Cardano Foundation
--- License: Apache-2.0
---
--- Provides generators and shrinkers for the 'TxWithUTxO' data type.
+{- |
+Copyright: © 2024 Cardano Foundation
+License: Apache-2.0
+
+Provides generators and shrinkers for the 'TxWithUTxO' data type.
+-}
 module Cardano.Balance.Tx.TxWithUTxO.Gen
     ( generate
     , generateWithMinimalUTxO
@@ -48,7 +49,6 @@ import Control.Monad
 import Data.List
     ( transpose
     )
-import Prelude
 import Test.QuickCheck
     ( Gen
     , Positive (..)
@@ -56,17 +56,19 @@ import Test.QuickCheck
     , frequency
     , suchThat
     )
+import Prelude
 
 import qualified Cardano.Balance.Tx.TxWithUTxO as TxWithUTxO
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
--- | Generates a 'TxWithUTxO' object.
---
--- The domain of the UTxO map is a superset of the transaction input set, but
--- it may or may not be a strict superset.
+{- | Generates a 'TxWithUTxO' object.
+
+The domain of the UTxO map is a superset of the transaction input set, but
+it may or may not be a strict superset.
+-}
 generate
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => Gen (Tx era)
     -> Gen (TxIn)
     -> Gen (TxOut era)
@@ -77,11 +79,12 @@ generate genTx genTxIn genTxOut =
         , (1, generateWithSurplusUTxO genTx genTxIn genTxOut)
         ]
 
--- | Generates a 'TxWithUTxO' object that has a minimal UTxO set.
---
--- The domain of the UTxO map is exactly equal to the transaction input set.
+{- | Generates a 'TxWithUTxO' object that has a minimal UTxO set.
+
+The domain of the UTxO map is exactly equal to the transaction input set.
+-}
 generateWithMinimalUTxO
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => Gen (Tx era)
     -> Gen (TxOut era)
     -> Gen (TxWithUTxO era)
@@ -92,13 +95,14 @@ generateWithMinimalUTxO genTx genTxOut = do
   where
     txAllInputs = view (bodyTxL . allInputsTxBodyF)
 
--- | Generates a 'TxWithUTxO' object that has a surplus UTxO set.
---
--- The domain of the UTxO map is a strict superset of the transaction input set.
+{- | Generates a 'TxWithUTxO' object that has a surplus UTxO set.
+
+The domain of the UTxO map is a strict superset of the transaction input set.
+-}
 generateWithSurplusUTxO
     :: forall era
      . ()
-    => IsRecentEra era
+    => (IsRecentEra era)
     => Gen (Tx era)
     -> Gen (TxIn)
     -> Gen (TxOut era)
@@ -110,7 +114,7 @@ generateWithSurplusUTxO genTx genTxIn genTxOut =
             pure $ TxWithUTxO.constructFiltered tx $ UTxO (utxo <> utxoSurplus)
 
 shrinkWith
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => (Tx era -> [Tx era])
     -> (UTxO era -> [UTxO era])
     -> (TxWithUTxO era -> [TxWithUTxO era])
@@ -121,14 +125,14 @@ shrinkWith shrinkTx shrinkUTxO txWithUTxO =
         ]
 
 shrinkTxWith
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => (Tx era -> [Tx era])
     -> (TxWithUTxO era -> [TxWithUTxO era])
 shrinkTxWith shrinkTx (TxWithUTxO tx utxo) =
     [TxWithUTxO.constructFiltered tx' utxo | tx' <- shrinkTx tx]
 
 shrinkUTxOWith
-    :: IsRecentEra era
+    :: (IsRecentEra era)
     => (UTxO era -> [UTxO era])
     -> (TxWithUTxO era -> [TxWithUTxO era])
 shrinkUTxOWith shrinkUTxO (TxWithUTxO tx utxo) =
@@ -141,17 +145,19 @@ shrinkUTxOWith shrinkUTxO (TxWithUTxO tx utxo) =
 interleaveRoundRobin :: [[a]] -> [a]
 interleaveRoundRobin = concat . transpose
 
-genMapFromKeysWith :: Ord k => Gen v -> Set.Set k -> Gen (Map.Map k v)
+genMapFromKeysWith
+    :: (Ord k) => Gen v -> Set.Set k -> Gen (Map.Map k v)
 genMapFromKeysWith genValue =
     fmap Map.fromList . mapM (\k -> (k,) <$> genValue) . Set.toList
 
 genNonEmptyDisjointMap
-    :: Ord k => Gen k -> Gen v -> Map.Map k v -> Gen (Map.Map k v)
+    :: (Ord k) => Gen k -> Gen v -> Map.Map k v -> Gen (Map.Map k v)
 genNonEmptyDisjointMap genKey genValue existingMap =
     genMapFromKeysWith genValue
         =<< genNonEmptyDisjointSet genKey (Map.keysSet existingMap)
 
-genNonEmptyDisjointSet :: Ord a => Gen a -> Set.Set a -> Gen (Set.Set a)
+genNonEmptyDisjointSet
+    :: (Ord a) => Gen a -> Set.Set a -> Gen (Set.Set a)
 genNonEmptyDisjointSet genElement0 existingElements = do
     size <- getPositive <$> arbitrary @(Positive Int)
     Set.fromList <$> replicateM size genElement
