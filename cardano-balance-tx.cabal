@@ -39,13 +39,19 @@ common language
     OverloadedStrings
 
 common opts-lib
-  ghc-options: -Wall -Wcompat -fwarn-redundant-constraints
+  ghc-options:
+    -Wall -Werror -Wcompat -Wunused-imports -Wunused-packages
+    -Wmissing-export-lists -Wname-shadowing
+    -Wdeferred-out-of-scope-variables -Wpartial-type-signatures
+    -Wredundant-constraints
 
   if flag(release)
-    ghc-options: -O2 -Werror
+    ghc-options: -O2
 
 common opts-exe
-  ghc-options: -threaded -rtsopts -Wall
+  ghc-options:
+    -threaded -rtsopts -Wall -Werror -Wunused-imports
+    -Wunused-packages -Wname-shadowing
 
   if flag(release)
     ghc-options: -O2 -Werror
@@ -129,7 +135,6 @@ test-suite unit
     , cardano-balance-tx
     , cardano-binary
     , cardano-coin-selection
-    , cardano-crypto
     , cardano-crypto-class
     , cardano-crypto-test
     , cardano-crypto-wrapper
@@ -145,7 +150,6 @@ test-suite unit
     , cardano-ledger-conway:testlib
     , cardano-ledger-core
     , cardano-ledger-core:testlib
-    , cardano-ledger-mary
     , cardano-ledger-mary:testlib
     , cardano-ledger-shelley
     , cardano-slotting

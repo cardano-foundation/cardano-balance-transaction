@@ -20,6 +20,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {- HLINT ignore "Use null" -}
 {- HLINT ignore "Use camelCase" -}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -210,9 +211,6 @@ import Control.Monad.Trans.State.Strict
     ( evalState
     , state
     )
-import Data.Bifunctor
-    ( first
-    )
 import Data.ByteArray.Encoding
     ( Base (Base16)
     , convertFromBase
@@ -351,7 +349,6 @@ import Test.QuickCheck
     , Args (..)
     , NonNegative (..)
     , Property
-    , arbitraryBoundedEnum
     , arbitrarySizedNatural
     , checkCoverage
     , choose
@@ -367,7 +364,6 @@ import Test.QuickCheck
     , property
     , quickCheckWith
     , scale
-    , shrinkBoundedEnum
     , shrinkList
     , shrinkMapBy
     , stdArgs
@@ -438,7 +434,6 @@ import qualified Data.Set.NonEmpty as NESet
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Ouroboros.Consensus.HardFork.History as HF
-import qualified Test.Hspec.Extra as Hspec
 
 --------------------------------------------------------------------------------
 -- Specifications
