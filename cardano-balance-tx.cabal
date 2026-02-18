@@ -1,7 +1,7 @@
-cabal-version: 3.0
-name:          cardano-balance-tx
-version:       0.1.0
-synopsis:      Balancing transactions for the Cardano blockchain.
+cabal-version:      3.0
+name:               cardano-balance-tx
+version:            0.1.0
+synopsis:           Balancing transactions for the Cardano blockchain.
 description:
   Standalone transaction balancing for Cardano. Takes a partial
   transaction with user-specified outputs and produces a fully
@@ -16,21 +16,19 @@ homepage:
 bug-reports:
   https://github.com/cardano-foundation/cardano-balance-transaction/issues
 
-author:        Cardano Foundation (High Assurance Lab)
-maintainer:    hal@cardanofoundation.org
-copyright:     2018-2022 IOHK, 2023-2026 Cardano Foundation
-license:       Apache-2.0
-category:      Blockchain, Cardano, Transactions
-build-type:    Simple
-tested-with:   GHC ==9.12.2
-
+author:             Cardano Foundation (High Assurance Lab)
+maintainer:         hal@cardanofoundation.org
+copyright:          2018-2022 IOHK, 2023-2026 Cardano Foundation
+license:            Apache-2.0
+category:           Blockchain, Cardano, Transactions
+build-type:         Simple
+tested-with:        GHC ==9.12.2
 extra-doc-files:
-  README.md
   CHANGELOG.md
   NOTICE
+  README.md
 
-extra-source-files:
-  LICENSE
+extra-source-files: LICENSE
 
 common language
   default-language:   Haskell2010
@@ -50,8 +48,8 @@ common opts-lib
 
 common opts-exe
   ghc-options:
-    -threaded -rtsopts -Wall -Werror -Wunused-imports
-    -Wunused-packages -Wname-shadowing
+    -threaded -rtsopts -Wall -Werror -Wunused-imports -Wunused-packages
+    -Wname-shadowing
 
   if flag(release)
     ghc-options: -O2 -Werror
@@ -68,18 +66,18 @@ library
     , base                         >=4.14      && <5
     , bytestring                   >=0.10.6    && <0.13
     , cardano-addresses            >=4.0.2     && <4.1
-    , cardano-api                  >=10.16.0.0 && <10.17
+    , cardano-api                  >=10.23.0.0 && <10.24
     , cardano-coin-selection
     , cardano-crypto-class         ^>=2.2.3
-    , cardano-ledger-allegra       >=1.7.0.0   && <1.8
-    , cardano-ledger-alonzo        >=1.13.0.0  && <1.14
-    , cardano-ledger-api           >=1.11.0.0  && <1.12
-    , cardano-ledger-babbage       >=1.11.0.0  && <1.12
+    , cardano-ledger-allegra       >=1.8.0.0   && <1.9
+    , cardano-ledger-alonzo        >=1.14.0.0  && <1.15
+    , cardano-ledger-api           >=1.12.1.0  && <1.13
+    , cardano-ledger-babbage       >=1.12.0.0  && <1.13
     , cardano-ledger-binary
-    , cardano-ledger-conway        >=1.19.0.0  && <1.20
-    , cardano-ledger-core          >=1.17.0.0  && <1.18
-    , cardano-ledger-mary          >=1.8.0.0   && <1.9
-    , cardano-ledger-shelley       >=1.16.0.0  && <1.17
+    , cardano-ledger-conway        >=1.20.0.0  && <1.21
+    , cardano-ledger-core          >=1.18.0.0  && <1.19
+    , cardano-ledger-mary          >=1.9.0.0   && <1.10
+    , cardano-ledger-shelley       >=1.17.0.0  && <1.18
     , cardano-slotting             >=0.2.0.0   && <0.3
     , cardano-strict-containers    >=0.1.3.0   && <0.2
     , cborg                        >=0.2.1     && <0.3
@@ -93,8 +91,8 @@ library
     , MonadRandom                  >=0.6       && <0.7
     , monoid-subclasses            >=1.2.5.1   && <1.3
     , nonempty-containers          >=0.3.4.5   && <0.4
-    , ouroboros-consensus          >=0.27.0.0  && <0.28
-    , ouroboros-consensus-cardano  >=0.25.0.0  && <0.26
+    , ouroboros-consensus          >=0.30.0.0  && <0.31
+    , ouroboros-consensus-cardano  >=0.26.0.0  && <0.27
     , pretty-simple                >=4.1.2.0   && <4.2
     , QuickCheck                   >=2.14      && <2.16.0
     , serialise                    >=0.2.6.1   && <0.3
