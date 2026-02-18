@@ -1367,8 +1367,8 @@ updateTx tx extraContent = do
         -> RecentEra era
         -> Core.Script era
     toLedgerScript s = \case
-        RecentEraBabbage -> TimelockScript $ Convert.toLedgerTimelockScript s
-        RecentEraConway -> TimelockScript $ Convert.toLedgerTimelockScript s
+        RecentEraBabbage -> NativeScript $ Convert.toLedgerTimelockScript s
+        RecentEraConway -> NativeScript $ Convert.toLedgerTimelockScript s
 
 modifyShelleyTxBody
     :: forall era

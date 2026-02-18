@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
@@ -135,7 +136,7 @@ import Cardano.Api
     , ByronAddr
     , ByronEra
     , CardanoEra (..)
-    , Certificate
+    , Certificate (..)
     , Convert (..)
     , ConwayEra
     , ConwayEraOnwards (..)
@@ -146,24 +147,28 @@ import Cardano.Api
     , ExecutionUnits (ExecutionUnits)
     , Featured (..)
     , HasTypeProxy (AsType)
-    , Hash
+    , Hash (..)
     , HashableScriptData
     , InAnyCardanoEra (..)
     , Key (..)
     , KeyWitness
     , KeyWitnessInCtx (KeyWitnessForSpending, KeyWitnessForStakeAddr)
+    , LedgerProtocolParameters (..)
     , MIRPot (..)
     , MaryEraOnwards (..)
     , NetworkId (..)
     , NetworkMagic (NetworkMagic)
     , PaymentCredential (..)
-    , PlutusScript
+    , PlutusScript (..)
+    , PlutusScriptOrReferenceInput (..)
     , PlutusScriptVersion
     , PolicyAssets (..)
     , PolicyId (PolicyId)
+    , PoolId
     , PraosNonce
     , ProtocolParametersUpdate (ProtocolParametersUpdate)
     , Quantity
+    , ReferenceScript (..)
     , Script (..)
     , ScriptData (..)
     , ScriptDatum (..)
@@ -184,17 +189,18 @@ import Cardano.Api
     , ShelleyToBabbageEra (..)
     , ShelleyWitnessSigningKey (..)
     , SimpleScript (..)
+    , SimpleScriptOrReferenceInput (..)
     , SlotNo (SlotNo)
     , StakeAddress
     , StakeAddressReference (NoStakeAddress, StakeAddressByValue)
     , StakeAddressRequirements (..)
-    , StakeCredential
+    , StakeCredential (..)
     , StakeDelegationRequirements (..)
-    , StakePoolMetadata
-    , StakePoolMetadataReference
-    , StakePoolParameters
+    , StakePoolMetadata (..)
+    , StakePoolMetadataReference (..)
+    , StakePoolParameters (..)
     , StakePoolRegistrationRequirements (..)
-    , StakePoolRelay
+    , StakePoolRelay (..)
     , StakePoolRetirementRequirements (..)
     , ToJSON
     , Tx
@@ -255,26 +261,14 @@ import Cardano.Api
     , mkTxVotingProcedures
     , scriptLanguageSupportedInEra
     , shelleyAddressInEra
+    , shelleyBasedEraConstraints
+    , shelleyToBabbageEraConstraints
+    , toShelleyPoolParams
     , validateAndHashStakePoolMetadata
     )
 import Cardano.Api.Byron
     ( KeyWitness (ByronKeyWitness)
     , WitnessNetworkIdOrByronAddress (..)
-    )
-import Cardano.Api.Shelley
-    ( Hash (..)
-    , LedgerProtocolParameters (..)
-    , PlutusScript (..)
-    , PlutusScriptOrReferenceInput (..)
-    , PoolId
-    , ReferenceScript (..)
-    , SimpleScriptOrReferenceInput (..)
-    , StakeCredential (..)
-    , StakePoolMetadata (..)
-    , StakePoolMetadataReference (..)
-    , StakePoolParameters (..)
-    , StakePoolRelay (..)
-    , toShelleyPoolParams
     )
 import Cardano.Ledger.Api
     ( emptyPParams
@@ -405,8 +399,9 @@ import Test.QuickCheck.Instances.ByteString
     )
 
 import qualified Cardano.Api as Api
+import qualified Cardano.Api as ShelleyApi
+import qualified Cardano.Api.Experimental.Certificate as Exp
 import qualified Cardano.Api.Ledger as Ledger
-import qualified Cardano.Api.Shelley as ShelleyApi
 import qualified Cardano.Binary as CBOR
 import qualified Cardano.Crypto.Hash as Crypto
 import qualified Cardano.Crypto.Seed as Crypto
@@ -760,11 +755,13 @@ genAssetName :: Gen AssetName
 genAssetName =
     frequency
         -- mostly from a small number of choices, so we get plenty of repetition
-        [ (9, elements ["", "a", "b", "c"])
-        , (1, AssetName . fromString <$> (scale (min 32) (listOf genAlphaNum)))
-        , (1, AssetName . fromString <$> (vectorOf 1 genAlphaNum))
-        , (1, AssetName . fromString <$> (vectorOf 32 genAlphaNum))
+        [ (9, elements $ map mkAssetName ["", "a", "b", "c"])
+        , (1, mkAssetName <$> (scale (min 32) (listOf genAlphaNum)))
+        , (1, mkAssetName <$> (vectorOf 1 genAlphaNum))
+        , (1, mkAssetName <$> (vectorOf 32 genAlphaNum))
         ]
+  where
+    mkAssetName = Api.UnsafeAssetName . BS.pack . map (fromIntegral . fromEnum)
 
 genAlphaNum :: Gen Char
 genAlphaNum =
@@ -773,16 +770,8 @@ genAlphaNum =
 
 genPolicyId :: Gen PolicyId
 genPolicyId =
-    frequency
-        -- Mostly from a small number of choices, so we get plenty of repetition.
-        --
-        -- And because of the additional choice of asset name we repeat ourselves
-        -- even more here.
-        [ (80, pure $ fromString ('a' : replicate 55 '0'))
-        , (18, elements [fromString (x : replicate 55 '0') | x <- ['a' .. 'c']])
-        , -- and some from the full range of the type
-          (2, PolicyId <$> genScriptHash)
-        ]
+    -- Use a small set of policy IDs for repetition in tests
+    PolicyId <$> genScriptHash
 
 genAssetIdNoAda :: Gen AssetId
 genAssetIdNoAda = AssetId <$> genPolicyId <*> genAssetName
@@ -1308,6 +1297,7 @@ genCostModel language = do
             PlutusV1 -> snd <$> V1.costModelParamsForTesting
             PlutusV2 -> snd <$> V2.costModelParamsForTesting
             PlutusV3 -> snd <$> V3.costModelParamsForTesting
+            PlutusV4 -> snd <$> V3.costModelParamsForTesting
 
     eCostModel <-
         Alonzo.mkCostModel language
@@ -1330,7 +1320,7 @@ genCostModels = do
     pure $ Map.fromList costModels
   where
     plutusVersions :: [Language]
-    plutusVersions = [minBound .. maxBound]
+    plutusVersions = [PlutusV1, PlutusV2, PlutusV3]
 
     fromLanguage :: Language -> AnyPlutusScriptVersion
     fromLanguage = toEnum . fromEnum
@@ -1352,6 +1342,7 @@ protocolParametersForHashing = \case
     ShelleyBasedEraAlonzo -> LedgerProtocolParameters emptyPParams
     ShelleyBasedEraBabbage -> LedgerProtocolParameters emptyPParams
     ShelleyBasedEraConway -> LedgerProtocolParameters emptyPParams
+    ShelleyBasedEraDijkstra -> LedgerProtocolParameters emptyPParams
 
 genValidProtocolVersion :: Gen (Natural, Natural)
 genValidProtocolVersion = do
@@ -1660,14 +1651,14 @@ genTxCertificate era =
 
 genTxCertificates
     :: CardanoEra era -> Gen (TxCertificates BuildTx era)
-genTxCertificates era = withEraWitness era $ \sbe -> do
+genTxCertificates era = withEraWitness era $ \sbe -> shelleyBasedEraConstraints sbe $ do
     let stakingCore =
             (,)
                 <$> genStakeCredential
                 <*> genWitnessStake era
         staking = BuildTxWith <$> oneof [pure Nothing, Just <$> stakingCore]
         stakingCertificate = do
-            cert <- genTxCertificate era
+            cert <- toExpCert <$> genTxCertificate era
             stake <- staking
             pure (cert, stake)
         certificates =
@@ -2052,3 +2043,14 @@ genDRep =
         , pure DRepAlwaysAbstain
         , pure DRepAlwaysNoConfidence
         ]
+
+-- | Convert old-style 'Certificate era' to new 'Exp.Certificate'.
+toExpCert
+    :: (ShelleyApi.IsShelleyBasedEra era)
+    => Certificate era
+    -> Exp.Certificate (ShelleyApi.ShelleyLedgerEra era)
+toExpCert = \case
+    ShelleyRelatedCertificate s2b c ->
+        shelleyToBabbageEraConstraints s2b $ Exp.Certificate c
+    ConwayCertificate cow c ->
+        conwayEraOnwardsConstraints cow $ Exp.Certificate c

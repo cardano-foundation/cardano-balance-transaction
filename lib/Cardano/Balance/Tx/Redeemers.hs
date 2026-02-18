@@ -63,7 +63,8 @@ import Control.Arrow
     ( left
     )
 import Control.Lens
-    ( (.~)
+    ( view
+    , (.~)
     )
 import Control.Monad
     ( forM
@@ -83,9 +84,6 @@ import Data.ByteString
     )
 import Data.Function
     ( (&)
-    )
-import Data.Generics.Internal.VL.Lens
-    ( view
     )
 import Data.Generics.Labels
     (
@@ -259,18 +257,29 @@ assignScriptRedeemers pparams timeTranslation utxo redeemers tx = do
     addScriptIntegrityHash ledgerTx =
         ledgerTx
             & (bodyTxL . scriptIntegrityHashTxBodyL)
-                .~ Alonzo.hashScriptIntegrity
-                    (Set.fromList $ Alonzo.getLanguageView pparams <$> langs)
-                    (Alonzo.txrdmrs wits)
-                    (Alonzo.txdats' wits)
+                .~ integrityHash
       where
-        wits = Alonzo.wits ledgerTx
+        wits = view witsTxL ledgerTx
+        rdmrs = Alonzo.txrdmrs wits
+        dats = Alonzo.txdats wits
         langs =
             [ Alonzo.plutusScriptLanguage plutus
             | (_hash, script) <- Map.toList (Alonzo.txscripts wits)
             , (not . Ledger.isNativeScript @era) script
             , Just plutus <- [Alonzo.toPlutusScript script]
             ]
+        langViews =
+            Set.fromList $
+                Alonzo.getLanguageView pparams <$> langs
+        integrityHash
+            | Map.null (view Alonzo.unRedeemersL rdmrs)
+            , Map.null (view Alonzo.unTxDatsL dats)
+            , Set.null langViews =
+                SNothing
+            | otherwise =
+                SJust $
+                    Alonzo.hashScriptIntegrity $
+                        Alonzo.ScriptIntegrity rdmrs dats langViews
 
 --
 -- The 'Redeemer' type

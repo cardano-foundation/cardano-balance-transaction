@@ -406,7 +406,6 @@ import qualified Cardano.Address.Style.Byron as Byron
 import qualified Cardano.Address.Style.Shelley as Shelley
 import qualified Cardano.Api as CardanoApi
 import qualified Cardano.Api.Gen as CardanoApi
-import qualified Cardano.Api.Shelley as CardanoApi
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Cardano.Balance.Tx.Primitive.Gen as W
@@ -1560,6 +1559,8 @@ prop_balanceTxValid
                     succeedWithLabel "ProposalProceduresFieldNotSupported"
                 TreasuryDonationFieldNotSupported _ ->
                     succeedWithLabel "TreasuryDonationFieldNotSupported"
+                ReferenceInputsNotDisjointFromInputs _ ->
+                    succeedWithLabel "ReferenceInputsNotDisjointFromInputs"
 
         succeedWithLabel l = label l $ property True
 
