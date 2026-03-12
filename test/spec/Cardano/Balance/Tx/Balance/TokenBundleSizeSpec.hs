@@ -13,7 +13,7 @@ import Cardano.Balance.Tx.Balance.TokenBundleSize
     , mkTokenBundleSizeAssessor
     )
 import Cardano.Balance.Tx.Eras
-    ( Babbage
+    ( Dijkstra
     , InAnyRecentEra (..)
     , IsRecentEra (..)
     , RecentEra (..)
@@ -152,7 +152,7 @@ unit_assessTokenBundleSize_fixedSizeBundle
                     ]
       where
         actualAssessment = assessWalletTokenBundleSize assessor bundle
-        v = eraProtVerLow @Babbage
+        v = eraProtVerLow @Dijkstra
         actualLengthBytes = computeTokenBundleSerializedLengthBytes bundle v
         counterexampleText =
             unlines
@@ -174,7 +174,7 @@ unit_assessTokenBundleSize_fixedSizeBundle_32 (Blind (FixedSize32 b)) =
     unit_assessTokenBundleSize_fixedSizeBundle
         b
         TokenBundleSizeWithinLimit
-        babbageTokenBundleSizeAssessor
+        dijkstraTokenBundleSizeAssessor
         (W.TxSize 2116)
         (W.TxSize 2380)
 
@@ -184,7 +184,7 @@ unit_assessTokenBundleSize_fixedSizeBundle_48 (Blind (FixedSize48 b)) =
     unit_assessTokenBundleSize_fixedSizeBundle
         b
         TokenBundleSizeWithinLimit
-        babbageTokenBundleSizeAssessor
+        dijkstraTokenBundleSizeAssessor
         (W.TxSize 3172)
         (W.TxSize 3564)
 
@@ -194,7 +194,7 @@ unit_assessTokenBundleSize_fixedSizeBundle_64 (Blind (FixedSize64 b)) =
     unit_assessTokenBundleSize_fixedSizeBundle
         b
         TokenBundleSizeExceedsLimit
-        babbageTokenBundleSizeAssessor
+        dijkstraTokenBundleSizeAssessor
         (W.TxSize 4228)
         (W.TxSize 4748)
 
@@ -204,7 +204,7 @@ unit_assessTokenBundleSize_fixedSizeBundle_128 (Blind (FixedSize128 b)) =
     unit_assessTokenBundleSize_fixedSizeBundle
         b
         TokenBundleSizeExceedsLimit
-        babbageTokenBundleSizeAssessor
+        dijkstraTokenBundleSizeAssessor
         (W.TxSize 8452)
         (W.TxSize 9484)
 
@@ -256,7 +256,7 @@ type PParamsInRecentEra = InAnyRecentEra PParams
 instance Arbitrary PParamsInRecentEra where
     arbitrary =
         oneof
-            [ InBabbage <$> genPParams RecentEraBabbage
+            [ InDijkstra <$> genPParams RecentEraDijkstra
             , InConway <$> genPParams RecentEraConway
             ]
       where
@@ -279,11 +279,11 @@ instance Arbitrary PParamsInRecentEra where
                     , fromIntegral <$> arbitrary @Word32
                     ]
 
-babbageTokenBundleSizeAssessor :: TokenBundleSizeAssessor
-babbageTokenBundleSizeAssessor =
+dijkstraTokenBundleSizeAssessor :: TokenBundleSizeAssessor
+dijkstraTokenBundleSizeAssessor =
     mkTokenBundleSizeAssessor $
-        (def :: PParams Babbage)
-            & ppProtocolVersionL .~ (ProtVer (eraProtVerLow @Babbage) 0)
+        (def :: PParams Dijkstra)
+            & ppProtocolVersionL .~ (ProtVer (eraProtVerLow @Dijkstra) 0)
             & ppMaxValSizeL .~ maryTokenBundleMaxSizeBytes
   where
     maryTokenBundleMaxSizeBytes = 4000
@@ -291,7 +291,7 @@ babbageTokenBundleSizeAssessor =
 mkAssessorFromPParamsInRecentEra
     :: PParamsInRecentEra
     -> TokenBundleSizeAssessor
-mkAssessorFromPParamsInRecentEra (InBabbage pp) =
+mkAssessorFromPParamsInRecentEra (InDijkstra pp) =
     mkTokenBundleSizeAssessor pp
 mkAssessorFromPParamsInRecentEra (InConway pp) =
     mkTokenBundleSizeAssessor pp
