@@ -28,16 +28,16 @@ module Cardano.Balance.Tx.Primitive.Convert
     , fromLedgerAddress
 
       -- * TxOut (era-specific)
-    , toBabbageTxOut
     , toConwayTxOut
-    , fromBabbageTxOut
+    , toDijkstraTxOut
     , fromConwayTxOut
+    , fromDijkstraTxOut
 
       -- * UTxO (era-specific)
-    , toLedgerUTxOBabbage
     , toLedgerUTxOConway
-    , fromLedgerUTxOBabbage
+    , toLedgerUTxODijkstra
     , fromLedgerUTxOConway
+    , fromLedgerUTxODijkstra
 
       -- * PolicyId / AssetName
     , toLedgerPolicyId
@@ -77,8 +77,8 @@ import Cardano.Ledger.Allegra.Scripts
     , Timelock
     )
 import Cardano.Ledger.Api
-    ( BabbageEra
-    , ConwayEra
+    ( ConwayEra
+    , DijkstraEra
     )
 import Cardano.Ledger.Api.UTxO
     ( UTxO (..)
@@ -254,15 +254,6 @@ fromLedgerAddress = W.Address . Ledger.serialiseAddr
 -- TxOut (era-specific)
 --------------------------------------------------------------------------------
 
--- | Convert to a Babbage-era ledger 'TxOut'.
-toBabbageTxOut :: W.TxOut -> BabbageTxOut BabbageEra
-toBabbageTxOut (W.TxOut addr bundle) =
-    BabbageTxOut
-        (toLedgerAddress addr)
-        (toLedgerTokenBundle bundle)
-        NoDatum
-        SNothing
-
 -- | Convert to a Conway-era ledger 'TxOut'.
 toConwayTxOut :: W.TxOut -> BabbageTxOut ConwayEra
 toConwayTxOut (W.TxOut addr bundle) =
@@ -272,12 +263,14 @@ toConwayTxOut (W.TxOut addr bundle) =
         NoDatum
         SNothing
 
-{- | Convert from a Babbage-era ledger 'TxOut'.
-Inline scripts and datums are discarded.
--}
-fromBabbageTxOut :: BabbageTxOut BabbageEra -> W.TxOut
-fromBabbageTxOut (BabbageTxOut addr val _ _) =
-    W.TxOut (fromLedgerAddress addr) (fromLedgerTokenBundle val)
+-- | Convert to a Dijkstra-era ledger 'TxOut'.
+toDijkstraTxOut :: W.TxOut -> BabbageTxOut DijkstraEra
+toDijkstraTxOut (W.TxOut addr bundle) =
+    BabbageTxOut
+        (toLedgerAddress addr)
+        (toLedgerTokenBundle bundle)
+        NoDatum
+        SNothing
 
 {- | Convert from a Conway-era ledger 'TxOut'.
 Inline scripts and datums are discarded.
@@ -286,16 +279,16 @@ fromConwayTxOut :: BabbageTxOut ConwayEra -> W.TxOut
 fromConwayTxOut (BabbageTxOut addr val _ _) =
     W.TxOut (fromLedgerAddress addr) (fromLedgerTokenBundle val)
 
+{- | Convert from a Dijkstra-era ledger 'TxOut'.
+Inline scripts and datums are discarded.
+-}
+fromDijkstraTxOut :: BabbageTxOut DijkstraEra -> W.TxOut
+fromDijkstraTxOut (BabbageTxOut addr val _ _) =
+    W.TxOut (fromLedgerAddress addr) (fromLedgerTokenBundle val)
+
 --------------------------------------------------------------------------------
 -- UTxO (era-specific)
 --------------------------------------------------------------------------------
-
--- | Convert to a Babbage-era ledger 'UTxO'.
-toLedgerUTxOBabbage :: W.UTxO -> UTxO BabbageEra
-toLedgerUTxOBabbage (W.UTxO m) =
-    UTxO $
-        Map.mapKeys toLedgerTxIn $
-            Map.map toBabbageTxOut m
 
 -- | Convert to a Conway-era ledger 'UTxO'.
 toLedgerUTxOConway :: W.UTxO -> UTxO ConwayEra
@@ -304,12 +297,12 @@ toLedgerUTxOConway (W.UTxO m) =
         Map.mapKeys toLedgerTxIn $
             Map.map toConwayTxOut m
 
--- | Convert from a Babbage-era ledger 'UTxO'.
-fromLedgerUTxOBabbage :: UTxO BabbageEra -> W.UTxO
-fromLedgerUTxOBabbage (UTxO m) =
-    W.UTxO $
-        Map.mapKeys fromLedgerTxIn $
-            Map.map fromBabbageTxOut m
+-- | Convert to a Dijkstra-era ledger 'UTxO'.
+toLedgerUTxODijkstra :: W.UTxO -> UTxO DijkstraEra
+toLedgerUTxODijkstra (W.UTxO m) =
+    UTxO $
+        Map.mapKeys toLedgerTxIn $
+            Map.map toDijkstraTxOut m
 
 -- | Convert from a Conway-era ledger 'UTxO'.
 fromLedgerUTxOConway :: UTxO ConwayEra -> W.UTxO
@@ -317,6 +310,13 @@ fromLedgerUTxOConway (UTxO m) =
     W.UTxO $
         Map.mapKeys fromLedgerTxIn $
             Map.map fromConwayTxOut m
+
+-- | Convert from a Dijkstra-era ledger 'UTxO'.
+fromLedgerUTxODijkstra :: UTxO DijkstraEra -> W.UTxO
+fromLedgerUTxODijkstra (UTxO m) =
+    W.UTxO $
+        Map.mapKeys fromLedgerTxIn $
+            Map.map fromDijkstraTxOut m
 
 --------------------------------------------------------------------------------
 -- PolicyId / AssetName
