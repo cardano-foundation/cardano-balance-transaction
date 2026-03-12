@@ -519,8 +519,8 @@ fromWalletUTxO
     => W.UTxO
     -> UTxO era
 fromWalletUTxO = case recentEra :: RecentEra era of
-    RecentEraBabbage -> Convert.toLedgerUTxOBabbage
     RecentEraConway -> Convert.toLedgerUTxOConway
+    RecentEraDijkstra -> Convert.toLedgerUTxODijkstra
 
 toWalletUTxO
     :: forall era
@@ -528,8 +528,8 @@ toWalletUTxO
     => UTxO era
     -> W.UTxO
 toWalletUTxO = case recentEra :: RecentEra era of
-    RecentEraBabbage -> Convert.fromLedgerUTxOBabbage
     RecentEraConway -> Convert.fromLedgerUTxOConway
+    RecentEraDijkstra -> Convert.fromLedgerUTxODijkstra
 
 balanceTx
     :: forall era m changeState
@@ -1120,8 +1120,8 @@ selectAssets
             -> TxOut e
         mkLedgerTxOut address bundle =
             case recentEra :: RecentEra e of
-                RecentEraBabbage -> Convert.toBabbageTxOut txOut
                 RecentEraConway -> Convert.toConwayTxOut txOut
+                RecentEraDijkstra -> Convert.toDijkstraTxOut txOut
           where
             txOut = W.TxOut address bundle
 
@@ -1367,8 +1367,8 @@ updateTx tx extraContent = do
         -> RecentEra era
         -> Core.Script era
     toLedgerScript s = \case
-        RecentEraBabbage -> NativeScript $ Convert.toLedgerTimelockScript s
         RecentEraConway -> NativeScript $ Convert.toLedgerTimelockScript s
+        RecentEraDijkstra -> NativeScript $ Convert.toLedgerTimelockScript s
 
 modifyShelleyTxBody
     :: forall era
@@ -1404,13 +1404,13 @@ toLedgerTxOut
     -> TxOut era
 toLedgerTxOut txOutEra txOut =
     case txOutEra of
-        RecentEraBabbage -> Convert.toBabbageTxOut txOut
         RecentEraConway -> Convert.toConwayTxOut txOut
+        RecentEraDijkstra -> Convert.toDijkstraTxOut txOut
 
 toWalletTxOut :: forall era. (IsRecentEra era) => TxOut era -> W.TxOut
 toWalletTxOut o = case recentEra :: RecentEra era of
-    RecentEraBabbage -> Convert.fromBabbageTxOut o
     RecentEraConway -> Convert.fromConwayTxOut o
+    RecentEraDijkstra -> Convert.fromDijkstraTxOut o
 
 -- | Maps an error from the coin selection API to a balanceTx error.
 coinSelectionErrorToBalanceTxError

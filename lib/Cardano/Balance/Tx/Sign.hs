@@ -6,6 +6,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use camelCase" #-}
@@ -38,6 +39,7 @@ import Cardano.Api.Ledger
 import Cardano.Balance.Tx.Eras
     ( CardanoApiEra
     , IsRecentEra (..)
+    , RecentEra (..)
     )
 import Cardano.Balance.Tx.Primitive
     ( TxSize (..)
@@ -114,7 +116,8 @@ import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
-import qualified Cardano.Ledger.Shelley.TxCert as Shelley
+import qualified Cardano.Ledger.Conway.TxCert as Conway
+import qualified Cardano.Ledger.Dijkstra.TxCert as Dijkstra
 import qualified Data.Foldable as F
 import qualified Data.List as L
 import qualified Data.Map as Map
@@ -206,10 +209,9 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
             _ -> 0
         txCerts = case CardanoApi.txCertificates txbodycontent of
             CardanoApi.TxCertificatesNone -> 0
-            CardanoApi.TxCertificates sbe certs ->
-                CardanoApi.shelleyBasedEraConstraints sbe $
-                    sumVia estimateDelegSigningKeys $
-                        fst <$> IsList.toList certs
+            CardanoApi.TxCertificates _sbe certs ->
+                sumVia estimateDelegSigningKeys $
+                    fst <$> IsList.toList certs
         nonInputWits =
             numberOfShelleyWitnesses $
                 fromIntegral $
@@ -286,11 +288,31 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
         :: Exp.Certificate (CardanoApi.ShelleyLedgerEra (CardanoApiEra era))
         -> Integer
     estimateDelegSigningKeys (Exp.Certificate txCert) =
-        case txCert of
-            Shelley.RegTxCert _ -> 0
-            Shelley.DelegStakeTxCert c _ -> estimateWitNumForCred c
-            Shelley.UnRegTxCert c -> estimateWitNumForCred c
-            _ -> 1
+        case recentEra @era of
+            RecentEraConway -> case txCert of
+                Conway.ConwayTxCertDeleg (Conway.ConwayRegCert _ _) -> 0
+                Conway.ConwayTxCertDeleg (Conway.ConwayUnRegCert c _) ->
+                    estimateWitNumForCred c
+                Conway.ConwayTxCertDeleg (Conway.ConwayDelegCert c _) ->
+                    estimateWitNumForCred c
+                Conway.ConwayTxCertDeleg (Conway.ConwayRegDelegCert c _ _) ->
+                    estimateWitNumForCred c
+                Conway.ConwayTxCertPool _ -> 1
+                Conway.ConwayTxCertGov _ -> 1
+            RecentEraDijkstra -> case txCert of
+                Dijkstra.DijkstraTxCertDeleg
+                    (Dijkstra.DijkstraRegCert _ _) -> 0
+                Dijkstra.DijkstraTxCertDeleg
+                    (Dijkstra.DijkstraUnRegCert c _) ->
+                        estimateWitNumForCred c
+                Dijkstra.DijkstraTxCertDeleg
+                    (Dijkstra.DijkstraDelegCert c _) ->
+                        estimateWitNumForCred c
+                Dijkstra.DijkstraTxCertDeleg
+                    (Dijkstra.DijkstraRegDelegCert c _ _) ->
+                        estimateWitNumForCred c
+                Dijkstra.DijkstraTxCertPool _ -> 1
+                Dijkstra.DijkstraTxCertGov _ -> 1
       where
         -- Does not include the key witness needed for script credentials.
         -- They are accounted for separately in @scriptVkWitsUpperBound@.

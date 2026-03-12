@@ -201,7 +201,7 @@ type RecentEraConstraints era =
     , Babbage.BabbageEraTxBody era
     , Alonzo.AlonzoEraTxBody era
     , Shelley.EraUTxO era
-    , Ledger.ShelleyEraTxCert era
+    , Core.EraTxCert era
     , Show (Core.TxOut era)
     , Show (Core.Tx era)
     , Show (Core.PParams era)
@@ -345,5 +345,3 @@ fromAnyCardanoEra = \case
         Just $ AnyRecentEra RecentEraConway
     CardanoApi.AnyCardanoEra CardanoApi.DijkstraEra ->
         Just $ AnyRecentEra RecentEraDijkstra
-    _ ->
-        Nothing
