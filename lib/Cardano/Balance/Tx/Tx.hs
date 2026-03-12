@@ -119,9 +119,9 @@ module Cardano.Balance.Tx.Tx
 where
 
 import Cardano.Balance.Tx.Eras
-    ( Babbage
-    , CardanoApiEra
+    ( CardanoApiEra
     , Conway
+    , Dijkstra
     , IsRecentEra (..)
     , LatestLedgerEra
     , MaybeInRecentEra (..)
@@ -164,6 +164,9 @@ import Cardano.Ledger.Conway.PParams
     ( ppDRepDepositL
     )
 import Cardano.Ledger.Conway.Scripts
+    ( PlutusScript (..)
+    )
+import Cardano.Ledger.Dijkstra.Scripts
     ( PlutusScript (..)
     )
 import Cardano.Ledger.Hashes
@@ -279,7 +282,7 @@ unsafeMkTxIn hash ix =
 -- TxOut
 --------------------------------------------------------------------------------
 
-type TxOutInBabbage = Babbage.BabbageTxOut Babbage
+type TxOutInBabbage = Babbage.BabbageTxOut Conway
 
 type Address = Ledger.Addr
 
@@ -328,15 +331,15 @@ wrapTxOutInRecentEra
     => TxOut era
     -> TxOutInRecentEra
 wrapTxOutInRecentEra out = case recentEra @era of
-    RecentEraConway ->
+    RecentEraDijkstra ->
         let
             BabbageTxOut addr v d s = out
         in
             TxOutInRecentEra addr v d (strictMaybeToMaybe s)
-    RecentEraBabbage -> wrapTxOutInRecentEra @Conway $ upgradeTxOut out
+    RecentEraConway -> wrapTxOutInRecentEra @Dijkstra $ upgradeTxOut out
 
 data ErrInvalidTxOutInEra
-    = InlinePlutusV3ScriptNotSupportedInBabbage
+    = InlinePlutusV4ScriptNotSupportedInConway
     deriving (Show, Eq)
 
 unwrapTxOutInRecentEra
@@ -345,19 +348,19 @@ unwrapTxOutInRecentEra
     => TxOutInRecentEra
     -> Either ErrInvalidTxOutInEra (TxOut era)
 unwrapTxOutInRecentEra recentEraTxOut = case recentEra @era of
-    RecentEraConway -> pure $ recentEraToConwayTxOut recentEraTxOut
-    RecentEraBabbage -> recentEraToBabbageTxOut recentEraTxOut
+    RecentEraDijkstra -> pure $ recentEraToDijkstraTxOut recentEraTxOut
+    RecentEraConway -> recentEraToConwayTxOut recentEraTxOut
+
+recentEraToDijkstraTxOut
+    :: TxOutInRecentEra
+    -> Babbage.BabbageTxOut LatestLedgerEra
+recentEraToDijkstraTxOut (TxOutInRecentEra addr val datum mscript) =
+    Babbage.BabbageTxOut addr val datum (maybeToStrictMaybe mscript)
 
 recentEraToConwayTxOut
     :: TxOutInRecentEra
-    -> Babbage.BabbageTxOut LatestLedgerEra
+    -> Either ErrInvalidTxOutInEra (BabbageTxOut Conway)
 recentEraToConwayTxOut (TxOutInRecentEra addr val datum mscript) =
-    Babbage.BabbageTxOut addr val datum (maybeToStrictMaybe mscript)
-
-recentEraToBabbageTxOut
-    :: TxOutInRecentEra
-    -> Either ErrInvalidTxOutInEra (BabbageTxOut Babbage)
-recentEraToBabbageTxOut (TxOutInRecentEra addr val datum mscript) =
     Babbage.BabbageTxOut
         addr
         val
@@ -373,8 +376,8 @@ recentEraToBabbageTxOut (TxOutInRecentEra addr val datum mscript) =
             Alonzo.Datum (coerce binaryData)
 
     downgradeScript
-        :: AlonzoScript Conway
-        -> Either ErrInvalidTxOutInEra (AlonzoScript Babbage)
+        :: AlonzoScript Dijkstra
+        -> Either ErrInvalidTxOutInEra (AlonzoScript Conway)
     downgradeScript = \case
         Alonzo.NativeScript timelockEra ->
             pure $ Alonzo.NativeScript (translateTimelock timelockEra)
@@ -382,12 +385,13 @@ recentEraToBabbageTxOut (TxOutInRecentEra addr val datum mscript) =
             PlutusScript <$> downgradePlutusScript s
 
     downgradePlutusScript
-        :: PlutusScript Conway
-        -> Either ErrInvalidTxOutInEra (PlutusScript Babbage)
+        :: PlutusScript Dijkstra
+        -> Either ErrInvalidTxOutInEra (PlutusScript Conway)
     downgradePlutusScript = \case
-        ConwayPlutusV1 s -> pure $ BabbagePlutusV1 s
-        ConwayPlutusV2 s -> pure $ BabbagePlutusV2 s
-        ConwayPlutusV3 _s -> Left InlinePlutusV3ScriptNotSupportedInBabbage
+        DijkstraPlutusV1 s -> pure $ ConwayPlutusV1 s
+        DijkstraPlutusV2 s -> pure $ ConwayPlutusV2 s
+        DijkstraPlutusV3 s -> pure $ ConwayPlutusV3 s
+        DijkstraPlutusV4 _s -> Left InlinePlutusV4ScriptNotSupportedInConway
 
 --
 -- MinimumUTxO
@@ -491,22 +495,22 @@ serializeTx tx =
 
 deserializeTx :: forall era. (IsRecentEra era) => ByteString -> Tx era
 deserializeTx = case recentEra @era of
-    RecentEraBabbage -> deserializeBabbageTx
     RecentEraConway -> deserializeConwayTx
+    RecentEraDijkstra -> deserializeDijkstraTx
   where
-    deserializeBabbageTx :: ByteString -> Tx Babbage
-    deserializeBabbageTx =
-        fromCardanoApiTx
-            . either (error . show) id
-            . CardanoApi.deserialiseFromCBOR
-                (CardanoApi.AsTx CardanoApi.AsBabbageEra)
-
     deserializeConwayTx :: ByteString -> Tx Conway
     deserializeConwayTx =
         fromCardanoApiTx
             . either (error . show) id
             . CardanoApi.deserialiseFromCBOR
                 (CardanoApi.AsTx CardanoApi.AsConwayEra)
+
+    deserializeDijkstraTx :: ByteString -> Tx Dijkstra
+    deserializeDijkstraTx =
+        fromCardanoApiTx
+            . either (error . show) id
+            . CardanoApi.deserialiseFromCBOR
+                (CardanoApi.AsTx CardanoApi.AsDijkstraEra)
 
 --------------------------------------------------------------------------------
 -- Compatibility
@@ -556,9 +560,11 @@ toRecentEraGADT = \case
         Left $ CardanoApi.AnyCardanoEra CardanoApi.MaryEra
     InNonRecentEraAlonzo ->
         Left $ CardanoApi.AnyCardanoEra CardanoApi.AlonzoEra
-    InRecentEraBabbage a ->
-        Right $ PParamsInAnyRecentEra recentEra a
+    InNonRecentEraBabbage ->
+        Left $ CardanoApi.AnyCardanoEra CardanoApi.BabbageEra
     InRecentEraConway a ->
+        Right $ PParamsInAnyRecentEra recentEra a
+    InRecentEraDijkstra a ->
         Right $ PParamsInAnyRecentEra recentEra a
 
 -- | The 'minfeeA' protocol parameter in unit @lovelace/byte@.
@@ -574,7 +580,7 @@ getFeePerByte pp =
     unsafeCoinToFee $
         case recentEra @era of
             RecentEraConway -> pp ^. Core.ppMinFeeAL
-            RecentEraBabbage -> pp ^. Core.ppMinFeeAL
+            RecentEraDijkstra -> pp ^. Core.ppMinFeeAL
   where
     unsafeCoinToFee :: Coin -> FeePerByte
     unsafeCoinToFee =
@@ -640,7 +646,7 @@ evaluateTransactionBalance pp depositLookup =
         -> Maybe Coin
     dRepDepositAssumeCurrent _drepCred = case recentEra @era of
         RecentEraConway -> Just $ pp ^. ppDRepDepositL
-        RecentEraBabbage -> error "impossible: lookupDRep called in Babbage"
+        RecentEraDijkstra -> Just $ pp ^. ppDRepDepositL
 
     -- Checks whether a pool with a supplied 'PoolStakeId' is already
     -- registered.

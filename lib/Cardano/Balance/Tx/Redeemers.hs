@@ -110,6 +110,7 @@ import qualified Cardano.Ledger.Alonzo.TxWits as Alonzo
 import qualified Cardano.Ledger.Api as Alonzo
 import qualified Cardano.Ledger.Api as Conway
 import qualified Cardano.Ledger.Api as Ledger
+import qualified Cardano.Ledger.Dijkstra.Scripts as Dijkstra
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Strict as Map
@@ -325,8 +326,8 @@ mkSpendingPurpose
     => AsItem Word32 TxIn
     -> Alonzo.PlutusPurpose AsItem era
 mkSpendingPurpose = case recentEra @era of
-    RecentEraBabbage -> Alonzo.AlonzoSpending
     RecentEraConway -> Conway.ConwaySpending
+    RecentEraDijkstra -> Dijkstra.DijkstraSpending
 
 mkMintingPurpose
     :: forall era
@@ -334,8 +335,8 @@ mkMintingPurpose
     => AsItem Word32 PolicyId
     -> Alonzo.PlutusPurpose AsItem era
 mkMintingPurpose = case recentEra @era of
-    RecentEraBabbage -> Alonzo.AlonzoMinting
     RecentEraConway -> Conway.ConwayMinting
+    RecentEraDijkstra -> Dijkstra.DijkstraMinting
 
 mkRewardingPurpose
     :: forall era
@@ -343,8 +344,8 @@ mkRewardingPurpose
     => AsItem Word32 RewardAccount
     -> Alonzo.PlutusPurpose AsItem era
 mkRewardingPurpose = case recentEra @era of
-    RecentEraBabbage -> Alonzo.AlonzoRewarding
     RecentEraConway -> Conway.ConwayRewarding
+    RecentEraDijkstra -> Dijkstra.DijkstraRewarding
 
 --------------------------------------------------------------------------------
 -- Utils

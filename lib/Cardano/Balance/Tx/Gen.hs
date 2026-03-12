@@ -23,8 +23,8 @@ import Cardano.Api.Ledger
     , UpgradeConwayPParams (..)
     )
 import Cardano.Balance.Tx.Eras
-    ( Babbage
-    , Conway
+    ( Conway
+    , Dijkstra
     , IsRecentEra (..)
     , RecentEra (..)
     )
@@ -35,6 +35,9 @@ import Cardano.Balance.Tx.Tx
 import Cardano.Ledger.Alonzo.PParams
     ( OrdExUnits (..)
     )
+import Cardano.Ledger.Api
+    ( BabbageEra
+    )
 import Cardano.Ledger.Babbage.PParams
     ( BabbagePParams (..)
     , CoinPerByte (..)
@@ -44,6 +47,7 @@ import Cardano.Ledger.BaseTypes
     , EpochInterval (..)
     , ProtVer (..)
     , natVersion
+    , unsafeNonZero
     )
 import Cardano.Ledger.Coin
     ( CompactForm (CompactCoin)
@@ -53,6 +57,12 @@ import Cardano.Ledger.Conway.PParams
     , DRepVotingThresholds (..)
     , PoolVotingThresholds (..)
     , upgradeConwayPParams
+    )
+import Cardano.Ledger.Core
+    ( upgradePParams
+    )
+import Cardano.Ledger.Dijkstra.PParams
+    ( UpgradeDijkstraPParams (..)
     )
 import Cardano.Ledger.Plutus
     ( CostModel
@@ -101,8 +111,8 @@ fees, execution unit prices, and the cost model.)
 mockPParams
     :: forall era. (IsRecentEra era) => PParams era
 mockPParams = case recentEra @era of
-    RecentEraBabbage -> unsafeWrap babbagePParams
     RecentEraConway -> unsafeWrap conwayPParams
+    RecentEraDijkstra -> dijkstraPParams
   where
     -- The constructor of the 'Cardano.Ledger.Core.PParams.PParams' newtype is
     -- not exported.
@@ -146,7 +156,22 @@ mockPParams = case recentEra @era of
                 , ucppPlutusV3CostModel = conwayPlutusV3CostModel
                 }
 
-    babbagePParams :: BabbagePParams Identity Babbage
+    dijkstraPParams :: PParams Dijkstra
+    dijkstraPParams =
+        upgradePParams
+            dijkstraUpgrade
+            (unsafeCoerce conwayPParams :: PParams Conway)
+      where
+        dijkstraUpgrade :: UpgradeDijkstraPParams Identity Dijkstra
+        dijkstraUpgrade =
+            UpgradeDijkstraPParams
+                { udppMaxRefScriptSizePerBlock = 1_048_576
+                , udppMaxRefScriptSizePerTx = 204_800
+                , udppRefScriptCostStride = unsafeNonZero 25_600
+                , udppRefScriptCostMultiplier = unsafeBoundRational 1.2
+                }
+
+    babbagePParams :: BabbagePParams Identity BabbageEra
     babbagePParams =
         BabbagePParams
             { bppMinFeeA = 44
