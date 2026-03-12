@@ -20,8 +20,8 @@ License: Apache-2.0
 Recent eras.
 -}
 module Cardano.Balance.Tx.Eras
-    ( Babbage
-    , Conway
+    ( Conway
+    , Dijkstra
     , LatestLedgerEra
     , RecentEra (..)
     , IsRecentEra (..)
@@ -54,8 +54,8 @@ import Cardano.Ledger.Alonzo.UTxO
     ( AlonzoScriptsNeeded
     )
 import Cardano.Ledger.Api
-    ( BabbageEra
-    , ConwayEra
+    ( ConwayEra
+    , DijkstraEra
     )
 import Cardano.Ledger.Api.UTxO
     ( EraUTxO (ScriptsNeeded)
@@ -101,12 +101,12 @@ import qualified Data.Set as Set
 --------------------------------------------------------------------------------
 
 -- | Type alias for backward compatibility
-type Babbage = BabbageEra
-
--- | Type alias for backward compatibility
 type Conway = ConwayEra
 
-type LatestLedgerEra = ConwayEra
+-- | Type alias for the Dijkstra era
+type Dijkstra = DijkstraEra
+
+type LatestLedgerEra = DijkstraEra
 
 --------------------------------------------------------------------------------
 -- RecentEra
@@ -156,17 +156,17 @@ makeAndSerializeTx :: IsRecentEra era => Intent -> ByteString
 @@
 -}
 data RecentEra era where
-    RecentEraBabbage :: RecentEra Babbage
     RecentEraConway :: RecentEra Conway
+    RecentEraDijkstra :: RecentEra Dijkstra
 
 deriving instance Eq (RecentEra era)
 deriving instance Show (RecentEra era)
 
 instance TestEquality RecentEra where
-    testEquality RecentEraBabbage RecentEraBabbage = Just Refl
     testEquality RecentEraConway RecentEraConway = Just Refl
-    testEquality RecentEraBabbage RecentEraConway = Nothing
-    testEquality RecentEraConway RecentEraBabbage = Nothing
+    testEquality RecentEraDijkstra RecentEraDijkstra = Just Refl
+    testEquality RecentEraConway RecentEraDijkstra = Nothing
+    testEquality RecentEraDijkstra RecentEraConway = Nothing
 
 -- | C.f. 'RecentEra'
 class
@@ -211,11 +211,11 @@ type RecentEraConstraints era =
     , Core.NativeScript era ~ Timelock era
     )
 
-instance IsRecentEra Babbage where
-    recentEra = RecentEraBabbage
-
 instance IsRecentEra Conway where
     recentEra = RecentEraConway
+
+instance IsRecentEra Dijkstra where
+    recentEra = RecentEraDijkstra
 
 data MaybeInRecentEra (thing :: Type -> Type)
     = InNonRecentEraByron
@@ -223,14 +223,15 @@ data MaybeInRecentEra (thing :: Type -> Type)
     | InNonRecentEraAllegra
     | InNonRecentEraMary
     | InNonRecentEraAlonzo
-    | InRecentEraBabbage (thing Babbage)
+    | InNonRecentEraBabbage
     | InRecentEraConway (thing Conway)
+    | InRecentEraDijkstra (thing Dijkstra)
 
 deriving instance
-    (Eq (a Babbage), (Eq (a Conway)))
+    (Eq (a Conway), (Eq (a Dijkstra)))
     => Eq (MaybeInRecentEra a)
 deriving instance
-    (Show (a Babbage), (Show (a Conway)))
+    (Show (a Conway), (Show (a Dijkstra)))
     => Show (MaybeInRecentEra a)
 
 -- | An existential type like 'AnyCardanoEra', but for 'RecentEra'.
@@ -255,8 +256,8 @@ instance Enum AnyRecentEra where
                     ]
 
 instance Bounded AnyRecentEra where
-    minBound = AnyRecentEra RecentEraBabbage
-    maxBound = AnyRecentEra RecentEraConway
+    minBound = AnyRecentEra RecentEraConway
+    maxBound = AnyRecentEra RecentEraDijkstra
 
 instance Ord AnyRecentEra where
     compare = compare `on` fromEnum
@@ -274,20 +275,21 @@ allRecentEras = Set.fromList [minBound .. maxBound]
 
 data InAnyRecentEra thing
     = InConway (thing Conway)
-    | InBabbage (thing Babbage)
+    | InDijkstra (thing Dijkstra)
 
 deriving instance
-    (Show (thing Conway), (Show (thing Babbage)))
+    (Show (thing Conway), (Show (thing Dijkstra)))
     => Show (InAnyRecentEra thing)
 deriving instance
-    (Eq (thing Conway), (Eq (thing Babbage))) => Eq (InAnyRecentEra thing)
+    (Eq (thing Conway), (Eq (thing Dijkstra)))
+    => Eq (InAnyRecentEra thing)
 
 toInAnyRecentEra
     :: forall era thing
      . (IsRecentEra era) => thing era -> InAnyRecentEra thing
 toInAnyRecentEra thing = case recentEra @era of
     RecentEraConway -> InConway thing
-    RecentEraBabbage -> InBabbage thing
+    RecentEraDijkstra -> InDijkstra thing
 
 --------------------------------------------------------------------------------
 -- Cardano.Api compatibility
@@ -296,8 +298,8 @@ toInAnyRecentEra thing = case recentEra @era of
 -- | Type family for converting to "Cardano.Api" eras.
 type family CardanoApiEra era = cardanoApiEra | cardanoApiEra -> era
 
-type instance CardanoApiEra Babbage = CardanoApi.BabbageEra
 type instance CardanoApiEra Conway = CardanoApi.ConwayEra
+type instance CardanoApiEra Dijkstra = CardanoApi.DijkstraEra
 
 -- | Convert to a 'CardanoEra'.
 cardanoEraFromRecentEra
@@ -305,7 +307,7 @@ cardanoEraFromRecentEra
     -> CardanoApi.CardanoEra (CardanoApiEra era)
 cardanoEraFromRecentEra = \case
     RecentEraConway -> CardanoApi.ConwayEra
-    RecentEraBabbage -> CardanoApi.BabbageEra
+    RecentEraDijkstra -> CardanoApi.DijkstraEra
 
 {- | Convert to a 'ShelleyBasedEra'.
 At this time, every 'RecentEra' is Shelley-based.
@@ -315,7 +317,7 @@ shelleyBasedEraFromRecentEra
     -> CardanoApi.ShelleyBasedEra (CardanoApiEra era)
 shelleyBasedEraFromRecentEra = \case
     RecentEraConway -> CardanoApi.ShelleyBasedEraConway
-    RecentEraBabbage -> CardanoApi.ShelleyBasedEraBabbage
+    RecentEraDijkstra -> CardanoApi.ShelleyBasedEraDijkstra
 
 -- | Currently needed for 'Enum' instance.
 toAnyCardanoEra :: AnyRecentEra -> CardanoApi.AnyCardanoEra
@@ -338,8 +340,10 @@ fromAnyCardanoEra = \case
     CardanoApi.AnyCardanoEra CardanoApi.AlonzoEra ->
         Nothing
     CardanoApi.AnyCardanoEra CardanoApi.BabbageEra ->
-        Just $ AnyRecentEra RecentEraBabbage
+        Nothing
     CardanoApi.AnyCardanoEra CardanoApi.ConwayEra ->
         Just $ AnyRecentEra RecentEraConway
+    CardanoApi.AnyCardanoEra CardanoApi.DijkstraEra ->
+        Just $ AnyRecentEra RecentEraDijkstra
     _ ->
         Nothing
