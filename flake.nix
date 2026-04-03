@@ -35,7 +35,7 @@
           inherit system;
         };
         project = import ./nix/project.nix {
-          indexState = "2025-10-01T00:00:00Z";
+          indexState = "2026-04-02T17:19:57Z";
           inherit pkgs CHaP;
           mkdocs = mkdocs.packages.${system};
         };

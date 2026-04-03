@@ -9,7 +9,7 @@ let
       fourmolu = { index-state = indexState; };
       hlint = { index-state = indexState; };
     };
-    withHoogle = true;
+    withHoogle = false;
     buildInputs = [
       pkgs.just
       pkgs.nixfmt-classic
