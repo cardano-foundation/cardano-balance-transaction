@@ -137,7 +137,6 @@ import Cardano.Balance.Tx.Balance
     )
 import Cardano.Balance.Tx.Eras
     ( AnyRecentEra (..)
-    , Babbage
     , CardanoApiEra
     , InAnyRecentEra (..)
     , IsRecentEra (recentEra)
