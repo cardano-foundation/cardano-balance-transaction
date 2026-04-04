@@ -184,7 +184,7 @@ unit_assessTokenBundleSize_fixedSizeBundle_48 (Blind (FixedSize48 b)) =
     unit_assessTokenBundleSize_fixedSizeBundle
         b
         TokenBundleSizeWithinLimit
-        babbageTokenBundleSizeAssessor
+        dijkstraTokenBundleSizeAssessor
         (W.TxSize 3172)
         (W.TxSize 3564)
 
