@@ -2437,8 +2437,8 @@ testStdGenSeed = StdGenSeed 0
 instance Arbitrary AnyRecentEra where
     arbitrary =
         elements
-            [ AnyRecentEra RecentEraBabbage
-            , AnyRecentEra RecentEraConway
+            [ AnyRecentEra RecentEraConway
+            , AnyRecentEra RecentEraDijkstra
             ]
 
 instance
