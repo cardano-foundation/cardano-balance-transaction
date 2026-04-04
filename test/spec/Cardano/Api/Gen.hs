@@ -405,8 +405,9 @@ import Test.QuickCheck.Instances.ByteString
     )
 
 import qualified Cardano.Api as Api
+import qualified Cardano.Api as ShelleyApi
+import qualified Cardano.Api.Experimental.Certificate as Exp
 import qualified Cardano.Api.Ledger as Ledger
-import qualified Cardano.Api.Shelley as ShelleyApi
 import qualified Cardano.Binary as CBOR
 import qualified Cardano.Crypto.Hash as Crypto
 import qualified Cardano.Crypto.Seed as Crypto
