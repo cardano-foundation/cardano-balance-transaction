@@ -2095,7 +2095,7 @@ fromWalletTxIn = Convert.toLedgerTxIn
 fromWalletTxOut
     :: forall era. (IsRecentEra era) => W.TxOut -> TxOut era
 fromWalletTxOut = case recentEra @era of
-    RecentEraBabbage -> Convert.toBabbageTxOut
+    RecentEraDijkstra -> Convert.toDijkstraTxOut
     RecentEraConway -> Convert.toConwayTxOut
 
 hasInsCollateral
