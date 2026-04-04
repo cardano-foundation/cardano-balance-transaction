@@ -415,7 +415,6 @@ import qualified Cardano.Balance.Tx.TxWithUTxO.Gen as TxWithUTxO
 import qualified Cardano.CoinSelection.Types.TokenBundle as W.TokenBundle
 import qualified Cardano.Crypto as CC
 import qualified Cardano.Crypto.Hash.Class as Crypto
-import qualified Cardano.Ledger.Alonzo.TxWits as Alonzo
 import qualified Cardano.Ledger.Coin as Ledger
 import qualified Cardano.Ledger.Conway.Core as Ledger
 import qualified Cardano.Ledger.Val as Value
