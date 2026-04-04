@@ -996,7 +996,7 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
       where
         eraName = case era of
             RecentEraConway -> "conway"
-            RecentEraBabbage -> "babbage"
+            RecentEraDijkstra -> "dijkstra"
 
     test :: String -> PartialTx era -> Spec
     test name partialTx = it name $ do
