@@ -13,7 +13,7 @@ import Cardano.Balance.Tx.Balance.TokenBundleSize
     , mkTokenBundleSizeAssessor
     )
 import Cardano.Balance.Tx.Eras
-    ( Babbage
+    ( Dijkstra
     , InAnyRecentEra (..)
     , IsRecentEra (..)
     , RecentEra (..)
