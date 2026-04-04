@@ -1101,9 +1101,9 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
             tx
             (estimateKeyWitnessCounts u tx mempty)
 
-spec_estimateSignedTxSize
+_spec_estimateSignedTxSize
     :: forall era. (IsRecentEra era) => RecentEra era -> Spec
-spec_estimateSignedTxSize _era = describe "estimateSignedTxSize" $ do
+_spec_estimateSignedTxSize _era = describe "estimateSignedTxSize" $ do
     txBinaries <- runIO signedTxTestData
     describe "equals the binary size of signed txs" $
         forAllGoldens txBinaries test
