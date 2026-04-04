@@ -279,11 +279,11 @@ instance Arbitrary PParamsInRecentEra where
                     , fromIntegral <$> arbitrary @Word32
                     ]
 
-babbageTokenBundleSizeAssessor :: TokenBundleSizeAssessor
-babbageTokenBundleSizeAssessor =
+dijkstraTokenBundleSizeAssessor :: TokenBundleSizeAssessor
+dijkstraTokenBundleSizeAssessor =
     mkTokenBundleSizeAssessor $
-        (def :: PParams Babbage)
-            & ppProtocolVersionL .~ (ProtVer (eraProtVerLow @Babbage) 0)
+        (def :: PParams Dijkstra)
+            & ppProtocolVersionL .~ (ProtVer (eraProtVerLow @Dijkstra) 0)
             & ppMaxValSizeL .~ maryTokenBundleMaxSizeBytes
   where
     maryTokenBundleMaxSizeBytes = 4000
