@@ -291,7 +291,7 @@ dijkstraTokenBundleSizeAssessor =
 mkAssessorFromPParamsInRecentEra
     :: PParamsInRecentEra
     -> TokenBundleSizeAssessor
-mkAssessorFromPParamsInRecentEra (InBabbage pp) =
+mkAssessorFromPParamsInRecentEra (InDijkstra pp) =
     mkTokenBundleSizeAssessor pp
 mkAssessorFromPParamsInRecentEra (InConway pp) =
     mkTokenBundleSizeAssessor pp
