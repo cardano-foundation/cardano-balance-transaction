@@ -256,7 +256,7 @@ type PParamsInRecentEra = InAnyRecentEra PParams
 instance Arbitrary PParamsInRecentEra where
     arbitrary =
         oneof
-            [ InBabbage <$> genPParams RecentEraBabbage
+            [ InDijkstra <$> genPParams RecentEraDijkstra
             , InConway <$> genPParams RecentEraConway
             ]
       where
