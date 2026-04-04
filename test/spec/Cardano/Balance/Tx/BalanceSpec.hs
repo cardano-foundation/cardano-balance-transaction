@@ -1083,8 +1083,8 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
             KeyHash
                 "00000000000000000000000000000000000000000000000000000001"
         certs =
-            [ mkRegTxCert dummyStakeKey
-            , mkDelegStakeTxCert dummyStakeKey dummyPool
+            [ mkRegCert era dummyStakeKey
+            , mkDelegCert era dummyStakeKey dummyPool
             ]
 
     minFee
