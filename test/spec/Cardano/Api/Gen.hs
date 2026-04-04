@@ -255,26 +255,14 @@ import Cardano.Api
     , mkTxVotingProcedures
     , scriptLanguageSupportedInEra
     , shelleyAddressInEra
+    , shelleyBasedEraConstraints
+    , shelleyToBabbageEraConstraints
+    , toShelleyPoolParams
     , validateAndHashStakePoolMetadata
     )
 import Cardano.Api.Byron
     ( KeyWitness (ByronKeyWitness)
     , WitnessNetworkIdOrByronAddress (..)
-    )
-import Cardano.Api.Shelley
-    ( Hash (..)
-    , LedgerProtocolParameters (..)
-    , PlutusScript (..)
-    , PlutusScriptOrReferenceInput (..)
-    , PoolId
-    , ReferenceScript (..)
-    , SimpleScriptOrReferenceInput (..)
-    , StakeCredential (..)
-    , StakePoolMetadata (..)
-    , StakePoolMetadataReference (..)
-    , StakePoolParameters (..)
-    , StakePoolRelay (..)
-    , toShelleyPoolParams
     )
 import Cardano.Ledger.Api
     ( emptyPParams
