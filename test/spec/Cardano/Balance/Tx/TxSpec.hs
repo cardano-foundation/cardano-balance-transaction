@@ -8,9 +8,10 @@
 module Cardano.Balance.Tx.TxSpec where
 
 import Cardano.Balance.Tx.Eras
-    ( AnyRecentEra
-    , Babbage
+    ( AnyRecentEra (..)
     , Conway
+    , Dijkstra
+    , RecentEra (..)
     )
 import Cardano.Balance.Tx.Tx
     ( computeMinimumCoinForTxOut
