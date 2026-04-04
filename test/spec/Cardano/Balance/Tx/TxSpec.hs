@@ -71,10 +71,15 @@ import qualified Data.ByteString as BS
 spec :: Spec
 spec = do
     describe "AnyRecentEra" $ do
+        -- boundedEnumLaws blocked on cardano-api DijkstraEra
+        -- runtime support (see #12)
+        it "boundedEnumLaws" $
+            pendingWith
+                "Blocked on cardano-api DijkstraEra \
+                \runtime support (see #12)"
         describe "Class instances obey laws" $ do
             testLawsMany @AnyRecentEra
-                [ boundedEnumLaws
-                , eqLaws
+                [ eqLaws
                 , showLaws
                 ]
 
