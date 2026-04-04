@@ -83,12 +83,17 @@ import Cardano.Ledger.Binary
     ( byronProtVer
     , decodeFull
     )
+import qualified Cardano.Ledger.Conway.TxCert as Conway
 import Cardano.Ledger.Conway.TxInfo
     ( ConwayContextError (..)
     )
 import Cardano.Ledger.Core
-    ( Era
+    ( TxCert
     )
+import Cardano.Ledger.Credential
+    ( StakeCredential
+    )
+import qualified Cardano.Ledger.Dijkstra.TxCert as Dijkstra
 import Cardano.Ledger.Keys.Bootstrap
     ( BootstrapWitness
     , makeBootstrapWitness
