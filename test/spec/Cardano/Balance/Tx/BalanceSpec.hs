@@ -443,17 +443,21 @@ spec = do
     forAllRecentEras $ \era -> do
         spec_balanceTx era
         spec_updateTx era
-
-    -- The exact test expectations depend on the test data which was generated
-    -- in either Alonzo or Babbage. Only running in Babbage should be fine for
-    -- now. When Babbage is dropped we could regenerate the test txs.
-    spec_estimateSignedTxSize RecentEraBabbage
   where
+    -- TODO [#11]: Regenerate estimateSignedTxSize test data for Conway
+    -- and Dijkstra eras. See __spec_estimateSignedTxSize (kept but not
+    -- called).
+
     forAllRecentEras
         :: (forall era. (IsRecentEra era) => RecentEra era -> Spec) -> Spec
     forAllRecentEras tests = do
         describe "Conway" $ tests RecentEraConway
-        describe "Babbage" $ tests RecentEraBabbage
+        describe "Dijkstra" $ do
+            it
+                "all tests pending until cardano-api supports DijkstraEra"
+                pendingDijkstra
+
+-- tests RecentEraDijkstra
 
 spec_balanceTx
     :: forall era. (IsRecentEra era) => RecentEra era -> Spec
