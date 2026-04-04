@@ -610,7 +610,7 @@ spec_balanceTx era = describe "balanceTx" $ do
         let outs = F.toList $ tx ^. bodyTxL . outputsTxBodyL
 
         let pp = case era of
-                RecentEraBabbage ->
+                RecentEraDijkstra ->
                     def
                         & ppCoinsPerUTxOByteL .~ testParameter_coinsPerUTxOByte
                 RecentEraConway ->
