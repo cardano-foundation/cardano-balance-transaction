@@ -152,7 +152,7 @@ unit_assessTokenBundleSize_fixedSizeBundle
                     ]
       where
         actualAssessment = assessWalletTokenBundleSize assessor bundle
-        v = eraProtVerLow @Babbage
+        v = eraProtVerLow @Dijkstra
         actualLengthBytes = computeTokenBundleSerializedLengthBytes bundle v
         counterexampleText =
             unlines
