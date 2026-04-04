@@ -676,7 +676,7 @@ spec_balanceTx era = describe "balanceTx" $ do
                             mkBasicTxBody
                                 & certsTxBodyL
                                     .~ StrictSeq.fromList
-                                        [ mkUnRegTxCert stakeCred
+                                        [ mkUnRegCert era stakeCred
                                         ]
                     , stakeKeyDeposits =
                         StakeKeyDepositMap $ Map.singleton stakeCred r
