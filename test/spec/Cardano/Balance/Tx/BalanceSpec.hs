@@ -1559,6 +1559,8 @@ prop_balanceTxValid
                     succeedWithLabel "ProposalProceduresFieldNotSupported"
                 TreasuryDonationFieldNotSupported _ ->
                     succeedWithLabel "TreasuryDonationFieldNotSupported"
+                ReferenceInputsNotDisjointFromInputs _ ->
+                    succeedWithLabel "ReferenceInputsNotDisjointFromInputs"
 
         succeedWithLabel l = label l $ property True
 
