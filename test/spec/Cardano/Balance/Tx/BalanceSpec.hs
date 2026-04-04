@@ -55,8 +55,6 @@ import Cardano.Ledger.Api
     , EraTx (witsTxL)
     , EraTxBody (..)
     , EraTxWits (addrTxWitsL, bootAddrTxWitsL, scriptTxWitsL)
-    , MaryEraTxBody (..)
-    , ShelleyEraTxBody (..)
     , TransactionScriptFailure (..)
     , ValidityInterval (..)
     , addrTxOutL
