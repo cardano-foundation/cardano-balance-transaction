@@ -327,7 +327,8 @@ import Test.Cardano.Ledger.Mary.Arbitrary
     (
     )
 import Test.Hspec
-    ( Spec
+    ( Expectation
+    , Spec
     , describe
     , expectationFailure
     , it
@@ -2663,164 +2664,75 @@ genTxOut =
     cardanoEra = cardanoEraFromRecentEra (recentEra :: RecentEra era)
     shelleyBasedEra = shelleyBasedEraFromRecentEra (recentEra :: RecentEra era)
 
--- | For writing shrinkers in the style of https://stackoverflow.com/a/14006575
-prependOriginal :: (t -> [t]) -> t -> [t]
-prependOriginal shrinker x = x : shrinker x
+{- | Marks a test as pending because cardano-api does not yet have
+runtime support for DijkstraEra. Track upstream progress in #12.
+-}
+pendingDijkstra :: Expectation
+pendingDijkstra =
+    pendingWith
+        "Blocked on cardano-api DijkstraEra runtime support \
+        \(see #12)"
 
-shrinkFee :: Ledger.Coin -> [Ledger.Coin]
-shrinkFee (Ledger.Coin 0) = []
-shrinkFee _ = [Ledger.Coin 0]
+mkRegCert
+    :: forall era
+     . (IsRecentEra era)
+    => RecentEra era
+    -> StakeCredential
+    -> TxCert era
+mkRegCert = \case
+    RecentEraConway ->
+        \c ->
+            Conway.ConwayTxCertDeleg $
+                Conway.ConwayRegCert c SNothing
+    RecentEraDijkstra ->
+        \c ->
+            Dijkstra.DijkstraTxCertDeleg $
+                Dijkstra.DijkstraRegCert c mempty
 
-shrinkScriptData
-    :: (Era (CardanoApi.ShelleyLedgerEra era))
-    => CardanoApi.TxBodyScriptData era
-    -> [CardanoApi.TxBodyScriptData era]
-shrinkScriptData CardanoApi.TxBodyNoScriptData = []
-shrinkScriptData
-    ( CardanoApi.TxBodyScriptData
-            era
-            (Alonzo.TxDats dats)
-            (Alonzo.Redeemers redeemers)
-        ) = case [ CardanoApi.TxBodyScriptData
-                    era
-                    (Alonzo.TxDats dats')
-                    (Alonzo.Redeemers redeemers')
-                 | dats' <-
-                    dats
-                        : (Map.fromList <$> shrinkList (const []) (Map.toList dats))
-                 , redeemers' <-
-                    redeemers
-                        : (Map.fromList <$> shrinkList (const []) (Map.toList redeemers))
-                 ] of
-        (_ : rest) -> rest
-        [] -> error "shrinkScriptData: unexpected empty shrink list"
+mkUnRegCert
+    :: forall era
+     . (IsRecentEra era)
+    => RecentEra era
+    -> StakeCredential
+    -> TxCert era
+mkUnRegCert = \case
+    RecentEraConway ->
+        \c ->
+            Conway.ConwayTxCertDeleg $
+                Conway.ConwayUnRegCert c SNothing
+    RecentEraDijkstra ->
+        \c ->
+            Dijkstra.DijkstraTxCertDeleg $
+                Dijkstra.DijkstraUnRegCert c mempty
 
-shrinkSeq
-    :: (Foldable t) => (a -> [a]) -> t a -> [StrictSeq.StrictSeq a]
-shrinkSeq shrinkElem =
-    map StrictSeq.fromList . shrinkList shrinkElem . F.toList
-
-shrinkSet :: (Ord a) => (a -> [a]) -> Set a -> [Set a]
-shrinkSet shrinkElem = map Set.fromList . shrinkList shrinkElem . F.toList
-
-shrinkStrictMaybe :: StrictMaybe a -> [StrictMaybe a]
-shrinkStrictMaybe = \case
-    SNothing -> []
-    SJust _ -> [SNothing]
+mkDelegCert
+    :: forall era
+     . (IsRecentEra era)
+    => RecentEra era
+    -> StakeCredential
+    -> KeyHash 'Ledger.StakePool
+    -> TxCert era
+mkDelegCert = \case
+    RecentEraConway ->
+        \c p ->
+            Conway.ConwayTxCertDeleg $
+                Conway.ConwayDelegCert
+                    c
+                    (Conway.DelegStake p)
+    RecentEraDijkstra ->
+        \c p ->
+            Dijkstra.DijkstraTxCertDeleg $
+                Dijkstra.DijkstraDelegCert
+                    c
+                    (Conway.DelegStake p)
 
 shrinkTx :: forall era. (IsRecentEra era) => Tx era -> [Tx era]
 shrinkTx =
     shrinkMapBy fromCardanoApiTx toCardanoApiTx shrinkCardanoApiTx
   where
     shrinkCardanoApiTx = case recentEra @era of
-        RecentEraBabbage -> shrinkTxBabbage
         RecentEraConway -> const [] -- no shrinker implemented yet
-
-shrinkTxBabbage
-    :: CardanoApi.Tx CardanoApi.BabbageEra
-    -> [CardanoApi.Tx CardanoApi.BabbageEra]
-shrinkTxBabbage (CardanoApi.Tx bod wits) =
-    [CardanoApi.Tx bod' wits | bod' <- shrinkTxBodyBabbage bod]
-
-shrinkTxBodyBabbage
-    :: CardanoApi.TxBody CardanoApi.BabbageEra
-    -> [CardanoApi.TxBody CardanoApi.BabbageEra]
-shrinkTxBodyBabbage
-    (CardanoApi.ShelleyTxBody e bod scripts scriptData aux val) =
-        case [ CardanoApi.ShelleyTxBody e bod' scripts' scriptData' aux' val'
-             | bod' <- prependOriginal shrinkLedgerTxBody bod
-             , aux' <- aux : filter (/= aux) [Nothing]
-             , scriptData' <- prependOriginal shrinkScriptData scriptData
-             , scripts' <- prependOriginal (shrinkList (const [])) scripts
-             , val' <-
-                val
-                    : filter
-                        (/= val)
-                        [ CardanoApi.TxScriptValidity
-                            CardanoApi.AlonzoEraOnwardsBabbage
-                            CardanoApi.ScriptValid
-                        ]
-             ] of
-            (_ : rest) -> rest
-            [] -> error "shrinkTxBodyBabbage: unexpected empty shrink list"
-      where
-        shrinkLedgerTxBody
-            :: Ledger.TxBody Babbage
-            -> [Ledger.TxBody Babbage]
-        shrinkLedgerTxBody body = case [ body
-                                            & withdrawalsTxBodyL .~ wdrls'
-                                            & outputsTxBodyL .~ outs'
-                                            & inputsTxBodyL .~ ins'
-                                            & certsTxBodyL .~ certs'
-                                            & mintTxBodyL .~ mint'
-                                            & reqSignerHashesTxBodyL .~ rsh'
-                                            & updateTxBodyL .~ updates'
-                                            & feeTxBodyL .~ txfee'
-                                            & vldtTxBodyL .~ vldt'
-                                            & scriptIntegrityHashTxBodyL .~ adHash'
-                                       | wdrls' <-
-                                            prependOriginal
-                                                shrinkWdrl
-                                                (body ^. withdrawalsTxBodyL)
-                                       , outs' <-
-                                            prependOriginal
-                                                (shrinkSeq (const []))
-                                                (body ^. outputsTxBodyL)
-                                       , ins' <-
-                                            prependOriginal
-                                                (shrinkSet (const []))
-                                                (body ^. inputsTxBodyL)
-                                       , certs' <-
-                                            prependOriginal
-                                                (shrinkSeq (const []))
-                                                (body ^. certsTxBodyL)
-                                       , mint' <-
-                                            prependOriginal
-                                                shrinkValue
-                                                (body ^. mintTxBodyL)
-                                       , rsh' <-
-                                            prependOriginal
-                                                (shrinkSet (const []))
-                                                (body ^. reqSignerHashesTxBodyL)
-                                       , updates' <-
-                                            prependOriginal
-                                                shrinkStrictMaybe
-                                                (body ^. updateTxBodyL)
-                                       , txfee' <-
-                                            prependOriginal
-                                                shrinkFee
-                                                (body ^. feeTxBodyL)
-                                       , vldt' <-
-                                            prependOriginal
-                                                shrinkValidity
-                                                (body ^. vldtTxBodyL)
-                                       , adHash' <-
-                                            prependOriginal
-                                                shrinkStrictMaybe
-                                                (body ^. scriptIntegrityHashTxBodyL)
-                                       ] of
-            (_ : rest) -> rest
-            [] -> error "shrinkLedgerTxBody: unexpected empty shrink list"
-
-        shrinkValidity (ValidityInterval a b) = case [ ValidityInterval a' b'
-                                                     | a' <- prependOriginal shrinkStrictMaybe a
-                                                     , b' <- prependOriginal shrinkStrictMaybe b
-                                                     ] of
-            (_ : rest) -> rest
-            [] -> error "shrinkValidity: unexpected empty shrink list"
-
-        shrinkValue :: (Eq a, Monoid a) => a -> [a]
-        shrinkValue v = filter (/= v) [mempty]
-
-shrinkWdrl :: Withdrawals -> [Withdrawals]
-shrinkWdrl (Withdrawals m) =
-    map (Withdrawals . Map.fromList) $
-        shrinkList shrinkWdrl' (Map.toList m)
-  where
-    shrinkWdrl' (acc, Ledger.Coin c) =
-        [ (acc, Ledger.Coin c')
-        | c' <- filter (>= 1) $ shrink c
-        ]
+        RecentEraDijkstra -> const [] -- no shrinker implemented yet
 
 --------------------------------------------------------------------------------
 -- Pretty-printing
