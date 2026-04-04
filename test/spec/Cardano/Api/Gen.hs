@@ -135,7 +135,7 @@ import Cardano.Api
     , ByronAddr
     , ByronEra
     , CardanoEra (..)
-    , Certificate
+    , Certificate (..)
     , Convert (..)
     , ConwayEra
     , ConwayEraOnwards (..)
