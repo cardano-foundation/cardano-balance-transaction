@@ -105,11 +105,11 @@ spec = do
         describe "computeMinimumCoinForTxOut" $ do
             it
                 "isBelowMinimumCoinForTxOut (setCoin (result <> delta)) \
-                \ == False (Babbage)"
+                \ == False (Dijkstra)"
                 $ property
                 $ \out delta perByte -> do
                     let pp =
-                            (def :: PParams Babbage)
+                            (def :: PParams Dijkstra)
                                 & ppCoinsPerUTxOByteL .~ perByte
                     let c = delta <> computeMinimumCoinForTxOut pp out
                     isBelowMinimumCoinForTxOut
