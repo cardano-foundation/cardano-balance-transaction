@@ -1526,7 +1526,8 @@ prop_balanceTxValid
                 succeedWithLabel "NoCostModelInLedgerState"
             ContextError e ->
                 case era of
-                    RecentEraBabbage -> prop_babbageContextError e
+                    -- TODO: update when Dijkstra context errors are known
+                    RecentEraDijkstra -> prop_conwayContextError e
                     RecentEraConway -> prop_conwayContextError e
           where
             prop_babbageContextError :: BabbageContextError era -> Property
