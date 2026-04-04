@@ -13,6 +13,12 @@ surplus distribution, token bundle size validation, Plutus redeemer
 assignment, and transaction size estimation across Babbage and Conway
 eras.
 
+```mermaid
+flowchart LR
+    A["Partial Tx\n+ UTxO\n+ Protocol Params"] --> B["balanceTx"]
+    B --> C["Balanced Tx\n(ready to sign)"]
+```
+
 ## Getting started
 
 See the [Getting Started](getting-started.md) guide for build
