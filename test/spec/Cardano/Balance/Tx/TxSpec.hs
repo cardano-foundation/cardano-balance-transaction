@@ -43,22 +43,21 @@ import Test.Hspec
     ( Spec
     , describe
     , it
+    , pendingWith
     , shouldBe
     , shouldNotBe
     )
 import Test.QuickCheck
     ( Arbitrary (..)
     , Property
-    , arbitraryBoundedEnum
     , conjoin
     , counterexample
+    , elements
     , property
-    , shrinkBoundedEnum
     , (===)
     )
 import Test.QuickCheck.Classes
-    ( boundedEnumLaws
-    , eqLaws
+    ( eqLaws
     , showLaws
     )
 import Test.Utils.Laws
