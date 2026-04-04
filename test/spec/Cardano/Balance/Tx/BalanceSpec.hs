@@ -97,7 +97,6 @@ import Cardano.Ledger.Shelley.API
     ( Credential (..)
     , KeyHash (..)
     , StrictMaybe (SJust, SNothing)
-    , Withdrawals (..)
     )
 import Cardano.Ledger.Val
     ( coin
