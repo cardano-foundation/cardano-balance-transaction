@@ -29,11 +29,6 @@ module Cardano.Balance.Tx.BalanceSpec
     ( spec
     ) where
 
-import Cardano.Api.Ledger
-    ( mkDelegStakeTxCert
-    , mkRegTxCert
-    , mkUnRegTxCert
-    )
 import Cardano.Binary
     ( ToCBOR
     , serialize'
