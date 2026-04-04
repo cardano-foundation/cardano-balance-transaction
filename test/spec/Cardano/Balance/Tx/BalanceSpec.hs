@@ -794,14 +794,16 @@ spec_balanceTx era = describe "balanceTx" $ do
                                     )
                             ) -> return ()
                     Left
-                        ( InBabbage
+                        ( InDijkstra
                                 ( ErrBalanceTxAssignRedeemers
                                         ( ErrAssignRedeemersScriptFailure
                                                 _redeemer
                                                 ( ContextError
-                                                        ( AlonzoContextError
-                                                                ( TimeTranslationPastHorizon
-                                                                        _pastHoriozon
+                                                        ( BabbageContextError
+                                                                ( AlonzoContextError
+                                                                        ( TimeTranslationPastHorizon
+                                                                                _pastHoriozon
+                                                                            )
                                                                     )
                                                             )
                                                     )
