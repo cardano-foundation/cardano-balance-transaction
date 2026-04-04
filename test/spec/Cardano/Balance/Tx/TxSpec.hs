@@ -135,9 +135,17 @@ spec = do
 -- Arbitrary instances
 --------------------------------------------------------------------------------
 
+{- | Uses explicit constructors instead of 'arbitraryBoundedEnum'
+because cardano-api's 'toEnum' doesn't support DijkstraEra
+yet (see #12).
+-}
 instance Arbitrary AnyRecentEra where
-    arbitrary = arbitraryBoundedEnum
-    shrink = shrinkBoundedEnum
+    arbitrary =
+        elements
+            [ AnyRecentEra RecentEraConway
+            , AnyRecentEra RecentEraDijkstra
+            ]
+    shrink _ = []
 
 --------------------------------------------------------------------------------
 -- Helpers
