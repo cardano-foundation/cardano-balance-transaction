@@ -48,8 +48,8 @@ common opts-lib
 
 common opts-exe
   ghc-options:
-    -threaded -rtsopts -Wall -Werror -Wunused-imports
-    -Wunused-packages -Wname-shadowing
+    -threaded -rtsopts -Wall -Werror -Wunused-imports -Wunused-packages
+    -Wname-shadowing
 
   if flag(release)
     ghc-options: -O2 -Werror
