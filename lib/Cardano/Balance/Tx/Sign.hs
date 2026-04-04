@@ -207,8 +207,10 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
             _ -> 0
         txCerts = case CardanoApi.txCertificates txbodycontent of
             CardanoApi.TxCertificatesNone -> 0
-            CardanoApi.TxCertificates _ certs ->
-                sumVia estimateDelegSigningKeys $ fst <$> IsList.toList certs
+            CardanoApi.TxCertificates sbe certs ->
+                CardanoApi.shelleyBasedEraConstraints sbe $
+                    sumVia estimateDelegSigningKeys $
+                        fst <$> IsList.toList certs
         nonInputWits =
             numberOfShelleyWitnesses $
                 fromIntegral $
