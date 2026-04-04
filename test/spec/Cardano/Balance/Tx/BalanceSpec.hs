@@ -2191,7 +2191,7 @@ cardanoToWalletTxOut =
 
     toWallet :: TxOut era -> W.TxOut
     toWallet x = case recentEra @era of
-        RecentEraBabbage -> Convert.fromBabbageTxOut x
+        RecentEraDijkstra -> Convert.fromDijkstraTxOut x
         RecentEraConway -> Convert.fromConwayTxOut x
 
 txFee :: (IsRecentEra era) => Tx era -> Coin
