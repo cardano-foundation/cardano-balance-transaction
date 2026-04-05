@@ -147,8 +147,8 @@ mockPParams = case recentEra @era of
                 , ucppCommitteeMinSize = 0
                 , ucppCommitteeMaxTermLength = EpochInterval 200
                 , ucppGovActionLifetime = EpochInterval 10
-                , ucppGovActionDeposit = 1_000 * ada
-                , ucppDRepDeposit = 2 * ada
+                , ucppGovActionDeposit = Coin 1_000_000_000
+                , ucppDRepDeposit = Coin 2_000_000
                 , ucppDRepActivity = EpochInterval 20
                 , ucppMinFeeRefScriptCostPerByte = unsafeBoundRational 44
                 , ucppPlutusV3CostModel = conwayPlutusV3CostModel
@@ -172,9 +172,9 @@ mockPParams = case recentEra @era of
     babbagePParams :: BabbagePParams Identity BabbageEra
     babbagePParams =
         BabbagePParams
-            { bppMinFeeA = 44
+            { bppMinFeeA = Coin 44
             , -- \^ The linear factor for the minimum fee calculation
-              bppMinFeeB = 155_381
+              bppMinFeeB = Coin 155_381
             , -- \^ The constant factor for the minimum fee calculation
               bppMaxBBSize = 100_000
             , -- \^ Maximal block body size
@@ -182,7 +182,7 @@ mockPParams = case recentEra @era of
             , -- \^ Maximal transaction size
               bppMaxBHSize = 1_100
             , -- \^ Maximal block header size
-              bppKeyDeposit = 2 * ada
+              bppKeyDeposit = Coin 2_000_000
             , -- \^ The amount of a key registration deposit
               bppPoolDeposit = CompactCoin 500_000_000
             , -- \^ The amount of a pool registration deposit
@@ -201,7 +201,7 @@ mockPParams = case recentEra @era of
             , -- \^ Protocol version
               bppMinPoolCost = Coin 170_000_000
             , -- \^ Minimum Stake Pool Cost
-              bppCoinsPerUTxOByte = CoinPerByte 4_310
+              bppCoinsPerUTxOByte = CoinPerByte (Coin 4_310)
             , -- \^ Cost in lovelace per byte of UTxO storage (instead of bppCoinsPerUTxOByte)
               bppCostModels = babbageCostModels
             , -- \^ Cost models for non-native script languages
@@ -222,9 +222,6 @@ mockPParams = case recentEra @era of
               bppMaxCollateralInputs = 3
             }
     -- \^ Maximum number of collateral inputs allowed in a transaction
-
-    ada :: Coin
-    ada = Coin 1_000_000
 
     unsafeBoundRational :: (BoundedRational r) => Rational -> r
     unsafeBoundRational x = fromMaybe err $ boundRational x
