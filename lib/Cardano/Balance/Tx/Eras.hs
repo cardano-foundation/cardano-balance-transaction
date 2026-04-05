@@ -2,13 +2,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
@@ -25,15 +23,12 @@ module Cardano.Balance.Tx.Eras
     , LatestLedgerEra
     , RecentEra (..)
     , IsRecentEra (..)
-    , CardanoApiEra
     , MaybeInRecentEra (..)
     , RecentEraConstraints
     , AnyRecentEra (..)
     , allRecentEras
     , InAnyRecentEra (..)
     , toInAnyRecentEra
-    , cardanoEraFromRecentEra
-    , shelleyBasedEraFromRecentEra
     ) where
 
 import Cardano.Ledger.Allegra.Scripts
@@ -73,8 +68,7 @@ import Data.Kind
     ( Type
     )
 import Data.Maybe
-    ( fromMaybe
-    , isJust
+    ( isJust
     )
 import Data.Set
     ( Set
@@ -88,7 +82,6 @@ import Data.Typeable
     )
 import Prelude
 
-import qualified Cardano.Api as CardanoApi
 import qualified Cardano.Ledger.Alonzo.Core as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
 import qualified Cardano.Ledger.Babbage.TxBody as Babbage
@@ -170,9 +163,7 @@ instance TestEquality RecentEra where
 
 -- | C.f. 'RecentEra'
 class
-    ( CardanoApi.IsShelleyBasedEra (CardanoApiEra era)
-    , CardanoApi.ShelleyLedgerEra (CardanoApiEra era) ~ era
-    , Typeable era
+    ( Typeable era
     , RecentEraConstraints era
     ) =>
     IsRecentEra era
@@ -242,18 +233,15 @@ data AnyRecentEra where
         -> AnyRecentEra -- and that's it.
 
 instance Enum AnyRecentEra where
-    -- NOTE: We're not starting at 0! 0 would be Byron, which is not a recent
-    -- era.
-    fromEnum = fromEnum . toAnyCardanoEra
-    toEnum n = fromMaybe err . fromAnyCardanoEra $ toEnum n
-      where
-        err =
-            error $
-                unwords
-                    [ "AnyRecentEra.toEnum:"
-                    , show n
-                    , "doesn't correspond to a recent era."
-                    ]
+    fromEnum (AnyRecentEra RecentEraConway) = 0
+    fromEnum (AnyRecentEra RecentEraDijkstra) = 1
+    toEnum 0 = AnyRecentEra RecentEraConway
+    toEnum 1 = AnyRecentEra RecentEraDijkstra
+    toEnum n =
+        error $
+            "AnyRecentEra.toEnum: "
+                <> show n
+                <> " doesn't correspond to a recent era."
 
 instance Bounded AnyRecentEra where
     minBound = AnyRecentEra RecentEraConway
@@ -290,58 +278,3 @@ toInAnyRecentEra
 toInAnyRecentEra thing = case recentEra @era of
     RecentEraConway -> InConway thing
     RecentEraDijkstra -> InDijkstra thing
-
---------------------------------------------------------------------------------
--- Cardano.Api compatibility
---------------------------------------------------------------------------------
-
--- | Type family for converting to "Cardano.Api" eras.
-type family CardanoApiEra era = cardanoApiEra | cardanoApiEra -> era
-
-type instance CardanoApiEra Conway = CardanoApi.ConwayEra
-type instance CardanoApiEra Dijkstra = CardanoApi.DijkstraEra
-
--- | Convert to a 'CardanoEra'.
-cardanoEraFromRecentEra
-    :: RecentEra era
-    -> CardanoApi.CardanoEra (CardanoApiEra era)
-cardanoEraFromRecentEra = \case
-    RecentEraConway -> CardanoApi.ConwayEra
-    RecentEraDijkstra -> CardanoApi.DijkstraEra
-
-{- | Convert to a 'ShelleyBasedEra'.
-At this time, every 'RecentEra' is Shelley-based.
--}
-shelleyBasedEraFromRecentEra
-    :: RecentEra era
-    -> CardanoApi.ShelleyBasedEra (CardanoApiEra era)
-shelleyBasedEraFromRecentEra = \case
-    RecentEraConway -> CardanoApi.ShelleyBasedEraConway
-    RecentEraDijkstra -> CardanoApi.ShelleyBasedEraDijkstra
-
--- | Currently needed for 'Enum' instance.
-toAnyCardanoEra :: AnyRecentEra -> CardanoApi.AnyCardanoEra
-toAnyCardanoEra (AnyRecentEra era) =
-    CardanoApi.AnyCardanoEra (cardanoEraFromRecentEra era)
-
--- | Currently needed for 'Enum' instance.
-fromAnyCardanoEra
-    :: CardanoApi.AnyCardanoEra
-    -> Maybe AnyRecentEra
-fromAnyCardanoEra = \case
-    CardanoApi.AnyCardanoEra CardanoApi.ByronEra ->
-        Nothing
-    CardanoApi.AnyCardanoEra CardanoApi.ShelleyEra ->
-        Nothing
-    CardanoApi.AnyCardanoEra CardanoApi.AllegraEra ->
-        Nothing
-    CardanoApi.AnyCardanoEra CardanoApi.MaryEra ->
-        Nothing
-    CardanoApi.AnyCardanoEra CardanoApi.AlonzoEra ->
-        Nothing
-    CardanoApi.AnyCardanoEra CardanoApi.BabbageEra ->
-        Nothing
-    CardanoApi.AnyCardanoEra CardanoApi.ConwayEra ->
-        Just $ AnyRecentEra RecentEraConway
-    CardanoApi.AnyCardanoEra CardanoApi.DijkstraEra ->
-        Just $ AnyRecentEra RecentEraDijkstra

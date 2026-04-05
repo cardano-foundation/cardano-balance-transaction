@@ -66,7 +66,6 @@ library
     , base                         >=4.14      && <5
     , bytestring                   >=0.10.6    && <0.13
     , cardano-addresses            >=4.0.2     && <4.1
-    , cardano-api                  >=10.23.0.0 && <10.24
     , cardano-coin-selection
     , cardano-crypto-class         ^>=2.2.3
     , cardano-ledger-allegra       >=1.8.0.0   && <1.9
