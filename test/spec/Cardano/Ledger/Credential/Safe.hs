@@ -22,9 +22,6 @@ where
 
 import Prelude
 
-import Cardano.Api
-    ( SlotNo (..)
-    )
 import Cardano.Ledger.BaseTypes
     ( CertIx
     , TxIx
@@ -32,6 +29,9 @@ import Cardano.Ledger.BaseTypes
 import Cardano.Ledger.Credential
     ( Ptr (..)
     , SlotNo32 (..)
+    )
+import Cardano.Slotting.Slot
+    ( SlotNo (..)
     )
 import Data.IntCast
     ( intCast
