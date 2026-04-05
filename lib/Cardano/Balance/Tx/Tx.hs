@@ -142,6 +142,7 @@ import Cardano.Ledger.Api
     , TxBody
     , TxOut
     , coinTxOutL
+    , eraProtVerLow
     , upgradeTxOut
     )
 import Cardano.Ledger.Api.UTxO
@@ -233,6 +234,7 @@ import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
 import qualified Cardano.Ledger.Babbage as Babbage
 import qualified Cardano.Ledger.Babbage.TxBody as Babbage
+import qualified Cardano.Ledger.Binary as Binary
 import qualified Cardano.Ledger.Core as Core
 import qualified Cardano.Ledger.Credential as Core
 import qualified Cardano.Ledger.Keys as Ledger
@@ -240,6 +242,7 @@ import qualified Cardano.Ledger.Mary.Value as Value
 import qualified Cardano.Ledger.Plutus.Data as Alonzo
 import qualified Cardano.Ledger.Shelley.UTxO as Shelley
 import qualified Cardano.Ledger.TxIn as Ledger
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map as Map
 
 --------------------------------------------------------------------------------
@@ -490,27 +493,30 @@ serializeTx
      . (IsRecentEra era)
     => Tx era
     -> ByteString
-serializeTx tx =
-    CardanoApi.serialiseToCBOR $ toCardanoApiTx tx
+serializeTx =
+    Binary.serialize' (eraProtVerLow @era)
 
-deserializeTx :: forall era. (IsRecentEra era) => ByteString -> Tx era
-deserializeTx = case recentEra @era of
-    RecentEraConway -> deserializeConwayTx
-    RecentEraDijkstra -> deserializeDijkstraTx
+deserializeTx
+    :: forall era
+     . (IsRecentEra era)
+    => ByteString
+    -> Tx era
+deserializeTx bs = case recentEra @era of
+    RecentEraConway -> decode bs
+    RecentEraDijkstra -> decode bs
   where
-    deserializeConwayTx :: ByteString -> Tx Conway
-    deserializeConwayTx =
-        fromCardanoApiTx
-            . either (error . show) id
-            . CardanoApi.deserialiseFromCBOR
-                (CardanoApi.AsTx CardanoApi.AsConwayEra)
-
-    deserializeDijkstraTx :: ByteString -> Tx Dijkstra
-    deserializeDijkstraTx =
-        fromCardanoApiTx
-            . either (error . show) id
-            . CardanoApi.deserialiseFromCBOR
-                (CardanoApi.AsTx CardanoApi.AsDijkstraEra)
+    decode
+        :: forall e
+         . (Core.EraTx e)
+        => ByteString
+        -> Tx e
+    decode =
+        either (error . show) id
+            . Binary.decodeFullAnnotator
+                (eraProtVerLow @e)
+                "Tx"
+                Binary.decCBOR
+            . BSL.fromStrict
 
 --------------------------------------------------------------------------------
 -- Compatibility
@@ -548,20 +554,14 @@ data PParamsInAnyRecentEra where
 
 toRecentEraGADT
     :: MaybeInRecentEra PParams
-    -> Either CardanoApi.AnyCardanoEra PParamsInAnyRecentEra
+    -> Either String PParamsInAnyRecentEra
 toRecentEraGADT = \case
-    InNonRecentEraByron ->
-        Left $ CardanoApi.AnyCardanoEra CardanoApi.ByronEra
-    InNonRecentEraShelley ->
-        Left $ CardanoApi.AnyCardanoEra CardanoApi.ShelleyEra
-    InNonRecentEraAllegra ->
-        Left $ CardanoApi.AnyCardanoEra CardanoApi.AllegraEra
-    InNonRecentEraMary ->
-        Left $ CardanoApi.AnyCardanoEra CardanoApi.MaryEra
-    InNonRecentEraAlonzo ->
-        Left $ CardanoApi.AnyCardanoEra CardanoApi.AlonzoEra
-    InNonRecentEraBabbage ->
-        Left $ CardanoApi.AnyCardanoEra CardanoApi.BabbageEra
+    InNonRecentEraByron -> Left "Byron"
+    InNonRecentEraShelley -> Left "Shelley"
+    InNonRecentEraAllegra -> Left "Allegra"
+    InNonRecentEraMary -> Left "Mary"
+    InNonRecentEraAlonzo -> Left "Alonzo"
+    InNonRecentEraBabbage -> Left "Babbage"
     InRecentEraConway a ->
         Right $ PParamsInAnyRecentEra recentEra a
     InRecentEraDijkstra a ->
