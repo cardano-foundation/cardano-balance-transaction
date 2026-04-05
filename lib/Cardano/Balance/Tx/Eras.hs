@@ -132,7 +132,7 @@ cases, you SHOULD NOT add a value-level argument.
 DO:
 
 @@
-isBabbageOnwards   :: IsRecentEra era => BabbageEraOnwards (CardanoApiEra era)
+isBabbageOnwards   :: IsRecentEra era => BabbageEraOnwards era
 signTxByAlice      :: IsRecentEra era => Tx era -> Tx era
 makeAndSerializeTx :: IsRecentEra era => RecentEra era -> Intent -> ByteString
 @@
@@ -141,7 +141,7 @@ DON'T:
 
 @@
    -- The type class constraint is necessary
-isBabbageOnwards   :: RecentEra era -> BabbageEraOnwards (CardanoApiEra era)
+isBabbageOnwards   :: RecentEra era -> BabbageEraOnwards era
    -- The value-level argument is probaby superfluous
 signTxByAlice      :: IsRecentEra era => RecentEra era -> Tx era -> Tx era
    -- This type is ambiguous

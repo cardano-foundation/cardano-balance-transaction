@@ -99,7 +99,6 @@ Full documentation is available at
 ## Key dependencies
 
 - `cardano-ledger-*` — core ledger types and validation
-- `cardano-api` — high-level Cardano API
 - `cardano-coin-selection` — coin selection algorithm
 - `ouroboros-consensus` — consensus protocol types
 
