@@ -15,13 +15,6 @@ module Cardano.Balance.Tx.Gen
     )
 where
 
-import Cardano.Api.Ledger
-    ( Coin (..)
-    , CostModels
-    , PParams
-    , PParamsHKD
-    , UpgradeConwayPParams (..)
-    )
 import Cardano.Balance.Tx.Eras
     ( Conway
     , Dijkstra
@@ -50,22 +43,27 @@ import Cardano.Ledger.BaseTypes
     , unsafeNonZero
     )
 import Cardano.Ledger.Coin
-    ( CompactForm (CompactCoin)
+    ( Coin (..)
+    , CompactForm (CompactCoin)
     )
 import Cardano.Ledger.Conway.PParams
     ( ConwayPParams
     , DRepVotingThresholds (..)
     , PoolVotingThresholds (..)
+    , UpgradeConwayPParams (..)
     , upgradeConwayPParams
     )
 import Cardano.Ledger.Core
-    ( upgradePParams
+    ( PParams
+    , PParamsHKD
+    , upgradePParams
     )
 import Cardano.Ledger.Dijkstra.PParams
     ( UpgradeDijkstraPParams (..)
     )
 import Cardano.Ledger.Plutus
     ( CostModel
+    , CostModels
     , ExUnits (..)
     , Language (..)
     , Prices (..)
