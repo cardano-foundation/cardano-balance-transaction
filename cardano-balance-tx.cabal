@@ -129,7 +129,6 @@ test-suite unit
     , base
     , bytestring
     , cardano-addresses
-    , cardano-api
     , cardano-balance-tx
     , cardano-binary
     , cardano-coin-selection
@@ -196,7 +195,6 @@ test-suite unit
   -- Haskell ecosystem (all from Hackage)
   build-tool-depends: hspec-discover:hspec-discover
   other-modules:
-    Cardano.Api.Gen
     Cardano.Balance.Tx.Balance.CoinSelectionSpec
     Cardano.Balance.Tx.Balance.SurplusSpec
     Cardano.Balance.Tx.Balance.TokenBundleSizeSpec
