@@ -85,7 +85,7 @@
 
 - [x] T016 Run the no-cardano-api grep check from T002 and verify zero matches.
 - [x] T017 [P] Verify `cabal build --dry-run` dependency plan does not include cardano-api.
-- [ ] T018 [P] Open downstream migration ticket(s) per FR-008 with detailed instructions (removed types, renamed imports, replacement patterns).
+- [x] T018 [P] Open downstream migration ticket(s) per FR-008 with detailed instructions (removed types, renamed imports, replacement patterns). See #36.
 - [x] T019 Update README.md to remove any references to cardano-api compatibility.
 
 ---
