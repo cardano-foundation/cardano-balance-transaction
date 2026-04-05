@@ -331,8 +331,7 @@ import Test.Cardano.Ledger.Mary.Arbitrary
     (
     )
 import Test.Hspec
-    ( Expectation
-    , Spec
+    ( Spec
     , describe
     , expectationFailure
     , it
@@ -455,12 +454,7 @@ spec = do
         :: (forall era. (IsRecentEra era) => RecentEra era -> Spec) -> Spec
     forAllRecentEras tests = do
         describe "Conway" $ tests RecentEraConway
-        describe "Dijkstra" $ do
-            it
-                "all tests pending until cardano-api supports DijkstraEra"
-                pendingDijkstra
-
--- tests RecentEraDijkstra
+        describe "Dijkstra" $ tests RecentEraDijkstra
 
 spec_balanceTx
     :: forall era. (IsRecentEra era) => RecentEra era -> Spec
@@ -2794,15 +2788,6 @@ genEncodingBoundaryCoin = do
             ]
     offset <- choose (-10, 10)
     pure $ Coin $ max 0 (boundary + offset)
-
-{- | Marks a test as pending because cardano-api does not yet have
-runtime support for DijkstraEra. Track upstream progress in #12.
--}
-pendingDijkstra :: Expectation
-pendingDijkstra =
-    pendingWith
-        "Blocked on cardano-api DijkstraEra runtime support \
-        \(see #12)"
 
 mkRegCert
     :: forall era
