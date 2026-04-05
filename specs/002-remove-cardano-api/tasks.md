@@ -14,7 +14,7 @@
 **Purpose**: Golden test baseline and verification infrastructure
 
 - [x] T001 Add CBOR golden test capturing current serialization output for Conway and Dijkstra transactions in test/spec/Cardano/Balance/Tx/SerializationGoldenSpec.hs
-- [ ] T002 [P] Add a CI check script that greps for `Cardano.Api` imports and fails if any are found, in scripts/check-no-cardano-api.sh
+- [x] T002 [P] Add a CI check script that greps for `Cardano.Api` imports and fails if any are found, in scripts/check-no-cardano-api.sh
 
 **Checkpoint**: Golden baseline captured, regression detection in place
 
@@ -56,9 +56,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] Audit all exposed modules listed in cardano-balance-tx.cabal for any residual cardano-api type references in public signatures. Document findings in specs/002-remove-cardano-api/api-audit.md.
-- [ ] T010 [US2] Fix any residual cardano-api types found in T009. Update Haddock comments that reference cardano-api types.
-- [ ] T011 [US2] Build Haddock documentation (`cabal haddock`) and verify no broken cross-references to cardano-api modules.
+- [x] T009 [US2] Audit all exposed modules listed in cardano-balance-tx.cabal for any residual cardano-api type references in public signatures. Document findings in specs/002-remove-cardano-api/api-audit.md.
+- [x] T010 [US2] Fix any residual cardano-api types found in T009. Update Haddock comments that reference cardano-api types.
+- [x] T011 [US2] Build Haddock documentation (`cabal haddock`) and verify no broken cross-references to cardano-api modules.
 
 **Checkpoint**: Public API is fully ledger-native. Haddock builds clean.
 
@@ -83,10 +83,10 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T016 Run the no-cardano-api grep check from T002 and verify zero matches.
-- [ ] T017 [P] Verify `cabal build --dry-run` dependency plan does not include cardano-api.
+- [x] T016 Run the no-cardano-api grep check from T002 and verify zero matches.
+- [x] T017 [P] Verify `cabal build --dry-run` dependency plan does not include cardano-api.
 - [ ] T018 [P] Open downstream migration ticket(s) per FR-008 with detailed instructions (removed types, renamed imports, replacement patterns).
-- [ ] T019 Update README.md to remove any references to cardano-api compatibility.
+- [x] T019 Update README.md to remove any references to cardano-api compatibility.
 
 ---
 
