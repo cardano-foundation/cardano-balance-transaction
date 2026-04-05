@@ -19,6 +19,7 @@ module Cardano.Balance.Tx.SerializationSpec
 
 import Cardano.Balance.Tx.Eras
     ( Conway
+    , Dijkstra
     , IsRecentEra
     )
 import Cardano.Balance.Tx.Tx
@@ -61,16 +62,43 @@ spec = do
             "Conway"
             conwayGoldenTests
 
-        describe "Dijkstra" $ do
-            it "round-trips signedTx golden files" $
-                pendingWith
-                    "No Dijkstra golden data yet; \
-                    \cardano-api DijkstraEra not supported \
-                    \at runtime (see #12)"
+        describe
+            "Dijkstra"
+            dijkstraGoldenTests
 
 -- | One test per golden CBOR file, sorted by index.
 conwayGoldenTests :: SpecWith ()
-conwayGoldenTests = do
+conwayGoldenTests = goldenTestsFor @Conway
+
+{- | Dijkstra deserializes Conway CBOR identically (backwards
+compatible), except for files containing certificates without
+deposits which Dijkstra rejects.
+-}
+dijkstraGoldenTests :: SpecWith ()
+dijkstraGoldenTests = do
+    files <- runIO $ do
+        let dir = $(getTestData) </> "signedTxs"
+        listCborFiles dir
+    mapM_ mkTest files
+  where
+    mkTest (name, bs)
+        | name `elem` dijkstraIncompatible =
+            it ("round-trips " <> name) $
+                pendingWith
+                    "Conway-only: certificates without deposits \
+                    \not supported in Dijkstra"
+        | otherwise =
+            it ("round-trips " <> name) $
+                assertRoundTrip @Dijkstra (name, bs)
+
+    -- Files containing Conway certificates without deposits,
+    -- which Dijkstra rejects at deserialization.
+    dijkstraIncompatible =
+        [ "42.cbor"
+        ]
+
+goldenTestsFor :: forall era. (IsRecentEra era) => SpecWith ()
+goldenTestsFor = do
     files <- runIO $ do
         let dir = $(getTestData) </> "signedTxs"
         listCborFiles dir
@@ -78,7 +106,7 @@ conwayGoldenTests = do
   where
     mkTest (name, bs) =
         it ("round-trips " <> name) $
-            assertRoundTrip @Conway (name, bs)
+            assertRoundTrip @era (name, bs)
 
 {- | Verify that deserializing and re-serializing a CBOR
 file produces identical bytes.
