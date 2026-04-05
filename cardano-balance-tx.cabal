@@ -202,6 +202,7 @@ test-suite unit
     Cardano.Balance.Tx.Balance.SurplusSpec
     Cardano.Balance.Tx.Balance.TokenBundleSizeSpec
     Cardano.Balance.Tx.BalanceSpec
+    Cardano.Balance.Tx.SerializationSpec
     Cardano.Balance.Tx.TxSpec
     Cardano.Ledger.Credential.Safe
     Spec
