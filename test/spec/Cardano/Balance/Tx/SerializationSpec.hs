@@ -27,6 +27,7 @@ import Cardano.Balance.Tx.Tx
     )
 import Data.List
     ( isSuffixOf
+    , sortOn
     )
 import System.Directory
     ( listDirectory
@@ -36,13 +37,18 @@ import System.FilePath
     )
 import Test.Hspec
     ( Spec
+    , SpecWith
     , describe
     , it
     , pendingWith
+    , runIO
     , shouldBe
     )
 import Test.Utils.Paths
     ( getTestData
+    )
+import Text.Read
+    ( readMaybe
     )
 import Prelude
 
@@ -51,23 +57,28 @@ import qualified Data.ByteString as BS
 spec :: Spec
 spec = do
     describe "serializeTx . deserializeTx round-trip" $ do
-        describe "Conway" $ do
-            it "round-trips signedTx golden files" $ do
-                let dir = $(getTestData) </> "signedTxs"
-                files <- listCborFiles dir
-                mapM_ (assertRoundTrip @Conway) files
+        describe
+            "Conway"
+            conwayGoldenTests
 
         describe "Dijkstra" $ do
-            it "round-trips signedTx golden files" $ do
-                -- Golden files are Conway-era transactions.
-                -- Dijkstra deserialization via cardano-api is
-                -- blocked on runtime support (see #12).
-                -- Once cardano-api is removed, this test
-                -- should work with Dijkstra-era test data.
+            it "round-trips signedTx golden files" $
                 pendingWith
                     "No Dijkstra golden data yet; \
                     \cardano-api DijkstraEra not supported \
                     \at runtime (see #12)"
+
+-- | One test per golden CBOR file, sorted by index.
+conwayGoldenTests :: SpecWith ()
+conwayGoldenTests = do
+    files <- runIO $ do
+        let dir = $(getTestData) </> "signedTxs"
+        listCborFiles dir
+    mapM_ mkTest files
+  where
+    mkTest (name, bs) =
+        it ("round-trips " <> name) $
+            assertRoundTrip @Conway (name, bs)
 
 {- | Verify that deserializing and re-serializing a CBOR
 file produces identical bytes.
@@ -87,10 +98,14 @@ listCborFiles
     -> IO [(FilePath, BS.ByteString)]
 listCborFiles dir = do
     entries <- listDirectory dir
-    fmap concat $ mapM load entries
+    (sortOn (goldenIx . fst) . concat)
+        <$> mapM load entries
   where
     load name
         | ".cbor" `isSuffixOf` name = do
             bs <- BS.readFile (dir </> name)
             pure [(name, bs)]
         | otherwise = pure []
+
+    goldenIx :: FilePath -> Maybe Int
+    goldenIx = readMaybe . takeWhile (/= '.')
