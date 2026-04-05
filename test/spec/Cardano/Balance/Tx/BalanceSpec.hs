@@ -2600,14 +2600,47 @@ instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
 The transaction has some random outputs but no inputs (to be
 filled by coin selection) and zero fees (to be computed).
 -}
+
+{- | Generate a transaction suitable for balancing tests.
+Sometimes includes collateral fields to exercise rejection paths.
+-}
 genTxForBalancing :: forall era. (IsRecentEra era) => Gen (Tx era)
 genTxForBalancing = do
     nOuts <- choose (0, 5)
     outs <- vectorOf nOuts genTxOut
-    pure $
-        mkBasicTx $
+    body <-
+        addCollateral $
             mkBasicTxBody
                 & outputsTxBodyL .~ StrictSeq.fromList outs
+    pure $ mkBasicTx body
+  where
+    addCollateral body =
+        frequency
+            [ (7, pure body)
+            ,
+                ( 1
+                , pure $
+                    body
+                        & totalCollateralTxBodyL .~ SJust (Coin 1_000_000)
+                )
+            ,
+                ( 1
+                , do
+                    ret <- genTxOut
+                    pure $
+                        body
+                            & collateralReturnTxBodyL .~ SJust ret
+                )
+            ,
+                ( 1
+                , do
+                    ret <- genTxOut
+                    pure $
+                        body
+                            & totalCollateralTxBodyL .~ SJust (Coin 1_000_000)
+                            & collateralReturnTxBodyL .~ SJust ret
+                )
+            ]
 
 genTxIn :: Gen TxIn
 genTxIn = fromWalletTxIn <$> W.genTxIn
