@@ -9,9 +9,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE UndecidableSuperClasses #-}
 
 {- |
 Copyright: © 2022 IOHK
@@ -28,10 +27,6 @@ wallet migration.
 module Cardano.Balance.Tx.Tx
     ( -- ** Key witness counts
       KeyWitnessCounts (..)
-
-      -- ** Helpers for cardano-api compatibility
-    , fromCardanoApiTx
-    , toCardanoApiTx
 
       -- ** Misc
     , StandardCrypto
@@ -119,14 +114,12 @@ module Cardano.Balance.Tx.Tx
 where
 
 import Cardano.Balance.Tx.Eras
-    ( CardanoApiEra
-    , Conway
+    ( Conway
     , Dijkstra
     , IsRecentEra (..)
     , LatestLedgerEra
     , MaybeInRecentEra (..)
     , RecentEra (..)
-    , shelleyBasedEraFromRecentEra
     )
 import Cardano.Crypto.Hash
     ( Hash (UnsafeHash)
@@ -224,7 +217,6 @@ import Ouroboros.Consensus.Shelley.Eras
     )
 import Prelude
 
-import qualified Cardano.Api as CardanoApi
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Cardano.Crypto.Hash.Class as Crypto
@@ -517,27 +509,6 @@ deserializeTx bs = case recentEra @era of
                 "Tx"
                 Binary.decCBOR
             . BSL.fromStrict
-
---------------------------------------------------------------------------------
--- Compatibility
---------------------------------------------------------------------------------
-
-fromCardanoApiTx
-    :: (IsRecentEra era)
-    => CardanoApi.Tx (CardanoApiEra era)
-    -> Tx era
-fromCardanoApiTx = \case
-    CardanoApi.ShelleyTx _era tx ->
-        tx
-
-toCardanoApiTx
-    :: forall era
-     . (IsRecentEra era)
-    => Tx era
-    -> CardanoApi.Tx (CardanoApiEra era)
-toCardanoApiTx =
-    CardanoApi.ShelleyTx $
-        shelleyBasedEraFromRecentEra (recentEra :: RecentEra era)
 
 --------------------------------------------------------------------------------
 -- PParams
