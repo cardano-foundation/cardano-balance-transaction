@@ -13,7 +13,7 @@
 
 **Purpose**: Golden test baseline and verification infrastructure
 
-- [ ] T001 Add CBOR golden test capturing current serialization output for Conway and Dijkstra transactions in test/spec/Cardano/Balance/Tx/SerializationGoldenSpec.hs
+- [x] T001 Add CBOR golden test capturing current serialization output for Conway and Dijkstra transactions in test/spec/Cardano/Balance/Tx/SerializationGoldenSpec.hs
 - [ ] T002 [P] Add a CI check script that greps for `Cardano.Api` imports and fails if any are found, in scripts/check-no-cardano-api.sh
 
 **Checkpoint**: Golden baseline captured, regression detection in place
@@ -24,8 +24,8 @@
 
 **Purpose**: Remove cardano-api from files where it's only used for re-exported ledger types. Each task is independently compilable.
 
-- [ ] T003 Replace `Cardano.Api.Ledger` imports with direct ledger imports in lib/Cardano/Balance/Tx/Gen.hs (`Coin` → `Cardano.Ledger.Coin`, `CostModels` → `Cardano.Ledger.Alonzo.Scripts`, `PParams`/`PParamsHKD`/`UpgradeConwayPParams` → `Cardano.Ledger.Core`/`Cardano.Ledger.Conway.PParams`)
-- [ ] T004 [P] Replace `Cardano.Api (SlotNo)` import with `Cardano.Slotting.Slot` in test/spec/Cardano/Ledger/Credential/Safe.hs. Add `cardano-slotting` to test build-depends if not already present.
+- [x] T003 Replace `Cardano.Api.Ledger` imports with direct ledger imports in lib/Cardano/Balance/Tx/Gen.hs (`Coin` → `Cardano.Ledger.Coin`, `CostModels` → `Cardano.Ledger.Alonzo.Scripts`, `PParams`/`PParamsHKD`/`UpgradeConwayPParams` → `Cardano.Ledger.Core`/`Cardano.Ledger.Conway.PParams`)
+- [x] T004 [P] Replace `Cardano.Api (SlotNo)` import with `Cardano.Slotting.Slot` in test/spec/Cardano/Ledger/Credential/Safe.hs. Add `cardano-slotting` to test build-depends if not already present.
 
 **Checkpoint**: Gen.hs and Safe.hs have zero cardano-api imports. Library and tests compile and pass.
 
@@ -39,10 +39,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Rewrite `estimateKeyWitnessCounts` in lib/Cardano/Balance/Tx/Sign.hs: replace `CardanoApi.getTxBodyContent` + pattern matching with ledger lenses (`bodyTxL`, `inputsTxBodyL`, `collateralInputsTxBodyL`, `reqSignerHashesTxBodyL`, `withdrawalsTxBodyL`, `certsTxBodyL`). Remove `txUpdateProposal` handling. Replace `Cardano.Api.Experimental.Certificate` usage with direct `Cardano.Ledger.Conway.TxCert`/`Cardano.Ledger.Dijkstra.TxCert`. Remove all `Cardano.Api` imports from the file.
-- [ ] T006 [US1] Rewrite serialization in lib/Cardano/Balance/Tx/Tx.hs: replace `CardanoApi.serialiseToCBOR`/`CardanoApi.deserialiseFromCBOR` with `Cardano.Ledger.Binary.serialize`/`decodeFull`. Remove `toCardanoApiTx` and `fromCardanoApiTx`. Replace `AnyCardanoEra` usage in `toRecentEraGADT` with a local error type or string. Remove all `Cardano.Api` imports from the file.
-- [ ] T007 [US1] Simplify `IsRecentEra` in lib/Cardano/Balance/Tx/Eras.hs: remove `CardanoApiEra` type family, drop `IsShelleyBasedEra` and `ShelleyLedgerEra` from `IsRecentEra` superclass constraints. Remove `cardanoEraFromRecentEra`, `shelleyBasedEraFromRecentEra`, `toAnyCardanoEra`, `fromAnyCardanoEra`. Replace `MaybeInRecentEra` non-recent constructors that reference `AnyCardanoEra` with a simple tag. Remove all `Cardano.Api` imports from the file.
-- [ ] T008 [US1] Remove `cardano-api` from library build-depends in cardano-balance-tx.cabal. Verify `cabal build lib:cardano-balance-tx` compiles.
+- [x] T005 [US1] Rewrite `estimateKeyWitnessCounts` in lib/Cardano/Balance/Tx/Sign.hs: replace `CardanoApi.getTxBodyContent` + pattern matching with ledger lenses (`bodyTxL`, `inputsTxBodyL`, `collateralInputsTxBodyL`, `reqSignerHashesTxBodyL`, `withdrawalsTxBodyL`, `certsTxBodyL`). Remove `txUpdateProposal` handling. Replace `Cardano.Api.Experimental.Certificate` usage with direct `Cardano.Ledger.Conway.TxCert`/`Cardano.Ledger.Dijkstra.TxCert`. Remove all `Cardano.Api` imports from the file.
+- [x] T006 [US1] Rewrite serialization in lib/Cardano/Balance/Tx/Tx.hs: replace `CardanoApi.serialiseToCBOR`/`CardanoApi.deserialiseFromCBOR` with `Cardano.Ledger.Binary.serialize`/`decodeFull`. Remove `toCardanoApiTx` and `fromCardanoApiTx`. Replace `AnyCardanoEra` usage in `toRecentEraGADT` with a local error type or string. Remove all `Cardano.Api` imports from the file.
+- [x] T007 [US1] Simplify `IsRecentEra` in lib/Cardano/Balance/Tx/Eras.hs: remove `CardanoApiEra` type family, drop `IsShelleyBasedEra` and `ShelleyLedgerEra` from `IsRecentEra` superclass constraints. Remove `cardanoEraFromRecentEra`, `shelleyBasedEraFromRecentEra`, `toAnyCardanoEra`, `fromAnyCardanoEra`. Replace `MaybeInRecentEra` non-recent constructors that reference `AnyCardanoEra` with a simple tag. Remove all `Cardano.Api` imports from the file.
+- [x] T008 [US1] Remove `cardano-api` from library build-depends in cardano-balance-tx.cabal. Verify `cabal build lib:cardano-balance-tx` compiles.
 
 **Checkpoint**: Library is cardano-api-free. `cabal build lib:cardano-balance-tx` passes. Tests may not compile yet (test generators still use cardano-api).
 
@@ -72,8 +72,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] Rewrite test/spec/Cardano/Api/Gen.hs to use only ledger types. Rename module to `Cardano.Balance.Tx.Test.Gen`. Move file to test/spec/Cardano/Balance/Tx/Test/Gen.hs. Update cabal other-modules accordingly.
-- [ ] T013 [US3] Update all imports of `Cardano.Api.Gen` in test/spec/Cardano/Balance/Tx/BalanceSpec.hs to use the renamed `Cardano.Balance.Tx.Test.Gen` module. Replace any remaining `CardanoApi.*` type references with ledger equivalents.
+- [ ] T012 [US3] Delete test/spec/Cardano/Api/Gen.hs (orphaned — nothing imports it after T013). Remove `Cardano.Api.Gen` from cabal other-modules.
+- [x] T013 [US3] Replace all `Cardano.Api`/`Cardano.Api.Gen` usage in test/spec/Cardano/Balance/Tx/BalanceSpec.hs with ledger-native generators. All generators rewritten inline; Gen.hs no longer imported.
 - [ ] T014 [US3] Remove `cardano-api` from test build-depends in cardano-balance-tx.cabal. Verify `cabal test` compiles and all tests pass.
 - [ ] T015 [US3] Run the CBOR golden test from T001 to confirm byte-identical serialization after migration.
 
