@@ -33,12 +33,8 @@ module Cardano.Balance.Tx.Sign
     )
 where
 
-import Cardano.Api.Ledger
-    ( Coin
-    )
 import Cardano.Balance.Tx.Eras
-    ( CardanoApiEra
-    , IsRecentEra (..)
+    ( IsRecentEra (..)
     , RecentEra (..)
     )
 import Cardano.Balance.Tx.Primitive
@@ -53,7 +49,9 @@ import Cardano.Balance.Tx.Tx
     , UTxO
     , feeOfBytes
     , getFeePerByte
-    , toCardanoApiTx
+    )
+import Cardano.Ledger.Address
+    ( RewardAccount (..)
     )
 import Cardano.Ledger.Allegra.Scripts
     ( Timelock
@@ -61,13 +59,21 @@ import Cardano.Ledger.Allegra.Scripts
 import Cardano.Ledger.Api
     ( Addr (..)
     , ScriptHash
+    , Withdrawals (..)
     , addrTxOutL
     , addrTxWitsL
     , bodyTxL
     , bootAddrTxWitsL
+    , certsTxBodyL
+    , collateralInputsTxBodyL
+    , inputsTxBodyL
     , scriptTxWitsL
     , sizeTxF
+    , withdrawalsTxBodyL
     , witsTxL
+    )
+import Cardano.Ledger.Coin
+    ( Coin
     )
 import Cardano.Ledger.Credential
     ( Credential (..)
@@ -108,12 +114,11 @@ import Prelude
 
 import qualified Cardano.Address.KeyHash as CA
 import qualified Cardano.Address.Script as CA
-import qualified Cardano.Api as CardanoApi
-import qualified Cardano.Api.Experimental.Certificate as Exp
 import qualified Cardano.Balance.Tx.Primitive as W
     ( TxSize (..)
     )
 import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
+import qualified Cardano.Ledger.Alonzo.Core as Alonzo
 import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
 import qualified Cardano.Ledger.Conway.TxCert as Conway
@@ -121,7 +126,7 @@ import qualified Cardano.Ledger.Dijkstra.TxCert as Dijkstra
 import qualified Data.Foldable as F
 import qualified Data.List as L
 import qualified Data.Map as Map
-import qualified GHC.IsList as IsList
+import qualified Data.Set as Set
 
 {- | Estimate the size of the transaction when fully signed.
 
@@ -181,61 +186,54 @@ estimateKeyWitnessCounts
     -}
     -> KeyWitnessCounts
 estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
-    let txIns = map fst $ CardanoApi.txIns txbodycontent
-        txInsCollateral =
-            case CardanoApi.txInsCollateral txbodycontent of
-                CardanoApi.TxInsCollateral _ ins -> ins
-                CardanoApi.TxInsCollateralNone -> []
-        vkInsUnique =
-            L.nub $
-                filter (not . hasScriptCred utxo) $
-                    map CardanoApi.toShelleyTxIn $
-                        txIns ++ txInsCollateral
-        txExtraKeyWits = CardanoApi.txExtraKeyWits txbodycontent
-        txExtraKeyWits' = case txExtraKeyWits of
-            CardanoApi.TxExtraKeyWitnesses _ khs -> khs
-            _ -> []
-        txWithdrawals = CardanoApi.txWithdrawals txbodycontent
-        txWithdrawals' = case txWithdrawals of
-            CardanoApi.TxWithdrawals _ wdls ->
-                [() | (_, _, CardanoApi.ViewTx) <- wdls]
-            _ -> []
-        txUpdateProposal = CardanoApi.txUpdateProposal txbodycontent
-        txUpdateProposal' = case txUpdateProposal of
-            CardanoApi.TxUpdateProposal
-                _
-                (CardanoApi.UpdateProposal updatePerGenesisKey _) ->
-                    Map.size updatePerGenesisKey
-            _ -> 0
-        txCerts = case CardanoApi.txCertificates txbodycontent of
-            CardanoApi.TxCertificatesNone -> 0
-            CardanoApi.TxCertificates _sbe certs ->
-                sumVia estimateDelegSigningKeys $
-                    fst <$> IsList.toList certs
-        nonInputWits =
-            numberOfShelleyWitnesses $
-                fromIntegral $
-                    length txExtraKeyWits'
-                        + length txWithdrawals'
-                        + txUpdateProposal'
-                        + fromIntegral txCerts
-                        + fromIntegral timelockTotalWitCount
-        inputWits =
-            KeyWitnessCounts
-                { nKeyWits =
-                    fromIntegral
-                        . length
-                        $ filter (not . hasBootstrapAddr utxo) vkInsUnique
-                , nBootstrapWits =
-                    fromIntegral
-                        . length
-                        $ filter (hasBootstrapAddr utxo) vkInsUnique
-                }
-    in  nonInputWits <> inputWits
+    nonInputWits <> inputWits
   where
-    CardanoApi.Tx body _keyWits =
-        toCardanoApiTx tx
-    txbodycontent = CardanoApi.getTxBodyContent body
+    txBody = tx ^. bodyTxL
+    allInputs =
+        Set.toList (txBody ^. inputsTxBodyL)
+            <> Set.toList
+                (txBody ^. collateralInputsTxBodyL)
+    vkInsUnique =
+        L.nub $
+            filter (not . hasScriptCred utxo) allInputs
+    nExtraKeyWits =
+        Set.size (txBody ^. Alonzo.reqSignerHashesTxBodyG)
+    Withdrawals wdrlMap =
+        txBody ^. withdrawalsTxBodyL
+    nKeyWithdrawals =
+        length $
+            filter isKeyHashWithdrawal $
+                Map.keys wdrlMap
+    certs = F.toList (txBody ^. certsTxBodyL)
+    nCertWits =
+        sumVia estimateDelegSigningKeys certs
+    nonInputWits =
+        numberOfShelleyWitnesses $
+            fromIntegral $
+                nExtraKeyWits
+                    + nKeyWithdrawals
+                    + fromIntegral nCertWits
+                    + fromIntegral timelockTotalWitCount
+    inputWits =
+        KeyWitnessCounts
+            { nKeyWits =
+                fromIntegral
+                    . length
+                    $ filter
+                        (not . hasBootstrapAddr utxo)
+                        vkInsUnique
+            , nBootstrapWits =
+                fromIntegral
+                    . length
+                    $ filter
+                        (hasBootstrapAddr utxo)
+                        vkInsUnique
+            }
+
+    isKeyHashWithdrawal :: RewardAccount -> Bool
+    isKeyHashWithdrawal (RewardAccount _ (KeyHashObj _)) = True
+    isKeyHashWithdrawal _ = False
+
     timelockTotalWitCount :: Natural
     timelockTotalWitCount =
         sum $
@@ -285,9 +283,9 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
         scriptsAvailableInBody = tx ^. witsTxL . scriptTxWitsL
 
     estimateDelegSigningKeys
-        :: Exp.Certificate (CardanoApi.ShelleyLedgerEra (CardanoApiEra era))
+        :: Ledger.TxCert era
         -> Integer
-    estimateDelegSigningKeys (Exp.Certificate txCert) =
+    estimateDelegSigningKeys txCert =
         case recentEra @era of
             RecentEraConway -> case txCert of
                 Conway.ConwayTxCertDeleg (Conway.ConwayRegCert _ _) -> 0
