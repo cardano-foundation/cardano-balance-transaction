@@ -72,10 +72,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] Delete test/spec/Cardano/Api/Gen.hs (orphaned — nothing imports it after T013). Remove `Cardano.Api.Gen` from cabal other-modules.
+- [x] T012 [US3] Delete test/spec/Cardano/Api/Gen.hs (orphaned — nothing imports it after T013). Remove `Cardano.Api.Gen` from cabal other-modules.
 - [x] T013 [US3] Replace all `Cardano.Api`/`Cardano.Api.Gen` usage in test/spec/Cardano/Balance/Tx/BalanceSpec.hs with ledger-native generators. All generators rewritten inline; Gen.hs no longer imported.
-- [ ] T014 [US3] Remove `cardano-api` from test build-depends in cardano-balance-tx.cabal. Verify `cabal test` compiles and all tests pass.
-- [ ] T015 [US3] Run the CBOR golden test from T001 to confirm byte-identical serialization after migration.
+- [x] T014 [US3] Remove `cardano-api` from test build-depends in cardano-balance-tx.cabal. Verify `cabal test` compiles and all tests pass.
+- [x] T015 [US3] Run the CBOR golden test from T001 to confirm byte-identical serialization after migration.
 
 **Checkpoint**: Full test suite passes. Zero cardano-api imports anywhere. Golden tests confirm behavioral preservation.
 
