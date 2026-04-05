@@ -41,6 +41,9 @@ import Cardano.Chain.Common
     , mkAttributes
     )
 import qualified Cardano.Chain.Common as Chain
+import Cardano.Ledger.Address
+    ( Addr (..)
+    )
 import Cardano.Ledger.Alonzo.Plutus.TxInfo
     ( AlonzoContextError (..)
     )
@@ -72,7 +75,8 @@ import Cardano.Ledger.Babbage.TxInfo
     ( BabbageContextError (..)
     )
 import Cardano.Ledger.BaseTypes
-    ( unsafeNonZero
+    ( Network (..)
+    , unsafeNonZero
     )
 import Cardano.Ledger.Binary
     ( byronProtVer
@@ -87,6 +91,7 @@ import Cardano.Ledger.Core
     )
 import Cardano.Ledger.Credential
     ( StakeCredential
+    , StakeReference (..)
     )
 import qualified Cardano.Ledger.Dijkstra.TxCert as Dijkstra
 import Cardano.Ledger.Keys.Bootstrap
@@ -100,6 +105,7 @@ import Cardano.Ledger.Shelley.API
     )
 import Cardano.Ledger.Val
     ( coin
+    , inject
     , (<->)
     )
 import Cardano.Mnemonic
@@ -137,12 +143,9 @@ import Cardano.Balance.Tx.Balance
     )
 import Cardano.Balance.Tx.Eras
     ( AnyRecentEra (..)
-    , CardanoApiEra
     , InAnyRecentEra (..)
     , IsRecentEra (recentEra)
     , RecentEra (..)
-    , cardanoEraFromRecentEra
-    , shelleyBasedEraFromRecentEra
     , toInAnyRecentEra
     )
 import Cardano.Balance.Tx.Gen
@@ -173,9 +176,7 @@ import Cardano.Balance.Tx.Tx
     , UTxO (..)
     , Value
     , deserializeTx
-    , fromCardanoApiTx
     , serializeTx
-    , toCardanoApiTx
     , unsafeUtxoFromTxOutsInRecentEra
     )
 import Cardano.Balance.Tx.TxWithUTxO
@@ -253,6 +254,7 @@ import Data.List
 import Data.Maybe
     ( catMaybes
     , fromJust
+    , fromMaybe
     )
 import Data.SOP.Counting
     ( exactlyOne
@@ -318,6 +320,9 @@ import System.FilePath
 import System.Random.StdGenSeed
     ( StdGenSeed (..)
     , stdGenFromSeed
+    )
+import Test.Cardano.Ledger.Conway.Arbitrary
+    (
     )
 import Test.Cardano.Ledger.Mary.Arbitrary
     (
@@ -401,8 +406,6 @@ import qualified Cardano.Address as CA
 import qualified Cardano.Address.Derivation as CA
 import qualified Cardano.Address.Style.Byron as Byron
 import qualified Cardano.Address.Style.Shelley as Shelley
-import qualified Cardano.Api as CardanoApi
-import qualified Cardano.Api.Gen as CardanoApi
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Cardano.Balance.Tx.Primitive.Gen as W
@@ -1787,7 +1790,7 @@ prop_bootstrapWitnesses
     {- ^ Number of bootstrap witnesses.
     Testing with [0, 255] should be sufficient.
     -}
-    -> CardanoApi.NetworkId
+    -> TestNetworkId
     -- ^ Network - will be encoded inside the witness.
     -> Word32
     -- ^ Account index - will be encoded inside the witness.
@@ -1827,8 +1830,8 @@ prop_bootstrapWitnesses _era p n net accIxW addr0IxW =
             ix = CA.unsafeMkIndex ixW
             addrK = Byron.deriveAddressPrivateKey accK ix
             byronNetDiscriminant = case net of
-                CardanoApi.Mainnet -> Byron.byronMainnet
-                CardanoApi.Testnet _ -> Byron.byronTestnet
+                TestMainnet -> Byron.byronMainnet
+                TestTestnet _ -> Byron.byronTestnet
             addr =
                 Byron.paymentAddress
                     byronNetDiscriminant
@@ -1838,7 +1841,7 @@ prop_bootstrapWitnesses _era p n net accIxW addr0IxW =
 
     mkByronWitness
         :: TxBody era
-        -> CardanoApi.NetworkId
+        -> TestNetworkId
         -> CA.Address
         -> CA.XPrv
         -> BootstrapWitness
@@ -1853,9 +1856,9 @@ prop_bootstrapWitnesses _era p n net accIxW addr0IxW =
                     (extractHDPayload addr)
                     (toByronNetworkMagic network)
 
-        toByronNetworkMagic CardanoApi.Mainnet =
+        toByronNetworkMagic TestMainnet =
             NetworkMainOrStage
-        toByronNetworkMagic (CardanoApi.Testnet (CardanoApi.NetworkMagic nm)) =
+        toByronNetworkMagic (TestTestnet nm) =
             NetworkTestnet nm
 
     extractHDPayload :: CA.Address -> Maybe Chain.HDAddressPayload
@@ -2179,21 +2182,6 @@ withValidityInterval
     -> PartialTx era
 withValidityInterval vi = #tx . bodyTxL %~ vldtTxBodyL .~ vi
 
-cardanoToWalletTxOut
-    :: forall era
-     . (IsRecentEra era)
-    => CardanoApi.TxOut CardanoApi.CtxUTxO (CardanoApiEra era)
-    -> W.TxOut
-cardanoToWalletTxOut =
-    toWallet . CardanoApi.toShelleyTxOut shelleyBasedEra
-  where
-    shelleyBasedEra = shelleyBasedEraFromRecentEra (recentEra @era)
-
-    toWallet :: TxOut era -> W.TxOut
-    toWallet x = case recentEra @era of
-        RecentEraDijkstra -> Convert.fromDijkstraTxOut x
-        RecentEraConway -> Convert.fromConwayTxOut x
-
 txFee :: (IsRecentEra era) => Tx era -> Coin
 txFee tx = tx ^. bodyTxL . feeTxBodyL
 
@@ -2326,7 +2314,7 @@ dummyTimeTranslationWithHorizon horizon =
         HF.Bound
             (RelativeTime $ fromIntegral $ slotLength * (unSlotNo horizon))
             horizon
-            (CardanoApi.EpochNo 1)
+            (Slotting.EpochNo 1)
 
     era1Params =
         HF.defaultEraParams (SecurityParam (unsafeNonZero 2)) (mkSlotLength 1)
@@ -2440,24 +2428,12 @@ instance Arbitrary AnyRecentEra where
             , AnyRecentEra RecentEraDijkstra
             ]
 
-instance
-    (CardanoApi.IsCardanoEra era)
-    => Arbitrary (CardanoApi.AddressInEra era)
-    where
-    arbitrary = CardanoApi.genAddressInEra CardanoApi.cardanoEra
+-- | Test-only network discriminant for Byron address generation.
+data TestNetworkId = TestMainnet | TestTestnet Word32
+    deriving (Show, Eq)
 
-instance
-    (CardanoApi.IsCardanoEra era)
-    => Arbitrary (CardanoApi.TxOutDatum ctx era)
-    where
-    arbitrary = CardanoApi.genTxOutDatum CardanoApi.cardanoEra
-
-instance Arbitrary CardanoApi.NetworkId where
-    arbitrary =
-        oneof
-            [ pure CardanoApi.Mainnet
-            , CardanoApi.Testnet . CardanoApi.NetworkMagic <$> arbitrary
-            ]
+instance Arbitrary TestNetworkId where
+    arbitrary = oneof [pure TestMainnet, TestTestnet <$> arbitrary]
 
 -- Coins (quantities of lovelace) must be strictly positive when included in
 -- transactions.
@@ -2502,7 +2478,7 @@ instance (IsRecentEra era) => Arbitrary (PartialTx era) where
             oneof
                 [ Coin . (1_000_000 *) . intCast . getNonNegative
                     <$> arbitrary @(NonNegative Int)
-                , CardanoApi.genCoin
+                , Coin . fromIntegral <$> choose @Int (0, 100)
                 ]
         occasionallyDropElems :: forall a. [a] -> Gen [a]
         occasionallyDropElems l = do
@@ -2581,32 +2557,23 @@ instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
     arbitrary =
         oneof
             [ Wallet AllKeyPaymentCredentials
-                <$> genWalletUTxO genShelleyVkAddr
+                <$> genWalletUTxO genShelleyAddr
                 <*> pure dummyShelleyChangeAddressGen
             , Wallet AllByronKeyPaymentCredentials
-                <$> genWalletUTxO genByronVkAddr
+                <$> genWalletUTxO genByronAddr
                 <*> pure dummyByronChangeAddressGen
             ]
       where
-        genShelleyVkAddr :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))
-        genShelleyVkAddr =
-            fmap (CardanoApi.shelleyAddressInEra era) $
-                CardanoApi.makeShelleyAddress
-                    <$> CardanoApi.genNetworkId
-                    <*> CardanoApi.genPaymentCredential -- only vk credentials
-                    <*> CardanoApi.genStakeAddressReference
-          where
-            era = shelleyBasedEraFromRecentEra (recentEra @era)
+        genShelleyAddr :: Gen (TxOut era)
+        genShelleyAddr = genTxOut
 
-        genByronVkAddr :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))
-        genByronVkAddr =
-            CardanoApi.byronAddressInEra
-                <$> CardanoApi.genAddressByron
+        genByronAddr :: Gen (TxOut era)
+        genByronAddr = genTxOut
 
         genWalletUTxO
-            :: Gen (CardanoApi.AddressInEra (CardanoApiEra era))
+            :: Gen (TxOut era)
             -> Gen (UTxO era)
-        genWalletUTxO genAddr =
+        genWalletUTxO genOut =
             scale (* 2) $
                 UTxO . Map.fromList <$> listOf genEntry
           where
@@ -2614,18 +2581,6 @@ instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
               where
                 genIn :: Gen TxIn
                 genIn = fromWalletTxIn <$> W.genTxIn
-
-                genOut :: Gen (TxOut era)
-                genOut =
-                    fmap (fromWalletTxOut . cardanoToWalletTxOut) $
-                        CardanoApi.TxOut
-                            <$> genAddr
-                            <*> scale (* 2) (CardanoApi.genTxOutValue era)
-                            <*> pure CardanoApi.TxOutDatumNone
-                            <*> pure CardanoApi.ReferenceScriptNone
-                  where
-                    era = cardanoEraFromRecentEra (recentEra @era)
-
     shrink (Wallet utxoAssumptions utxo changeAddressGen) =
         [ Wallet utxoAssumptions utxo' changeAddressGen
         | utxo' <- shrinkToUTxOSubset utxo
@@ -2639,29 +2594,44 @@ instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
                 . utxoToMap
           where
             utxoToMap (UTxO m) = m
-
         shrinkEntry _ = []
 
+{- | Generate a minimal transaction suitable for balancing.
+The transaction has some random outputs but no inputs (to be
+filled by coin selection) and zero fees (to be computed).
+-}
 genTxForBalancing :: forall era. (IsRecentEra era) => Gen (Tx era)
-genTxForBalancing =
-    fromCardanoApiTx <$> CardanoApi.genTxForBalancing cardanoEra
-  where
-    cardanoEra = cardanoEraFromRecentEra (recentEra :: RecentEra era)
+genTxForBalancing = do
+    nOuts <- choose (0, 5)
+    outs <- vectorOf nOuts genTxOut
+    pure $
+        mkBasicTx $
+            mkBasicTxBody
+                & outputsTxBodyL .~ StrictSeq.fromList outs
 
 genTxIn :: Gen TxIn
 genTxIn = fromWalletTxIn <$> W.genTxIn
 
 genTxOut :: forall era. (IsRecentEra era) => Gen (TxOut era)
-genTxOut =
-    -- NOTE: genTxOut does not generate quantities larger than
-    -- `maxBound :: Word64`, however users could supply these. We
-    -- should ideally test what happens, and make it clear what
-    -- code, if any, should validate.
-    CardanoApi.toShelleyTxOut shelleyBasedEra
-        <$> CardanoApi.genTxOut cardanoEra
-  where
-    cardanoEra = cardanoEraFromRecentEra (recentEra :: RecentEra era)
-    shelleyBasedEra = shelleyBasedEraFromRecentEra (recentEra :: RecentEra era)
+genTxOut = mkBasicTxOut <$> genLedgerAddr <*> genLovelaceValue
+
+genLedgerAddr :: Gen Addr
+genLedgerAddr =
+    Addr Testnet . KeyHashObj
+        <$> genKeyHash'
+        <*> pure StakeRefNull
+
+genKeyHash' :: Gen (KeyHash kr)
+genKeyHash' =
+    KeyHash
+        . fromMaybe (error "genKeyHash: invalid hash")
+        . Crypto.hashFromBytes
+        . BS.pack
+        <$> vectorOf 28 arbitrary
+
+genLovelaceValue :: Gen Value
+genLovelaceValue =
+    inject . Coin <$> choose (1, 10_000_000)
 
 {- | Marks a test as pending because cardano-api does not yet have
 runtime support for DijkstraEra. Track upstream progress in #12.
@@ -2726,12 +2696,7 @@ mkDelegCert = \case
                     (Conway.DelegStake p)
 
 shrinkTx :: forall era. (IsRecentEra era) => Tx era -> [Tx era]
-shrinkTx =
-    shrinkMapBy fromCardanoApiTx toCardanoApiTx shrinkCardanoApiTx
-  where
-    shrinkCardanoApiTx = case recentEra @era of
-        RecentEraConway -> const [] -- no shrinker implemented yet
-        RecentEraDijkstra -> const [] -- no shrinker implemented yet
+shrinkTx = const []
 
 --------------------------------------------------------------------------------
 -- Pretty-printing
