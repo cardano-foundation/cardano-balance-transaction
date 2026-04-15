@@ -134,14 +134,17 @@ test-suite unit
     , cardano-crypto-class
     , cardano-crypto-wrapper
     , cardano-ledger-alonzo
+    , cardano-ledger-alonzo:testlib
     , cardano-ledger-api
     , cardano-ledger-babbage
+    , cardano-ledger-babbage:testlib
     , cardano-ledger-binary
     , cardano-ledger-byron
     , cardano-ledger-conway
+    , cardano-ledger-conway:testlib
     , cardano-ledger-core
     , cardano-ledger-dijkstra
-    , cardano-ledger-mary
+    , cardano-ledger-mary:testlib
     , cardano-ledger-shelley
     , cardano-slotting
     , cardano-strict-containers

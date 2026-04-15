@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
@@ -19,6 +20,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-deprecations #-}
 {- HLINT ignore "Use null" -}
@@ -95,14 +97,17 @@ import Cardano.Ledger.Credential
     , StakeReference (..)
     )
 import qualified Cardano.Ledger.Dijkstra.TxCert as Dijkstra
+import qualified Cardano.Ledger.Dijkstra.TxInfo as DijkstraTxInfo
 import Cardano.Ledger.Keys.Bootstrap
     ( BootstrapWitness
     , makeBootstrapWitness
     )
+import Cardano.Ledger.MemoBytes
+    ( EqRaw
+    )
 import Cardano.Ledger.Shelley.API
     ( Credential (..)
     , KeyHash (..)
-    , RewardAccount (..)
     , StrictMaybe (SJust, SNothing)
     , Withdrawals (..)
     )
@@ -146,6 +151,7 @@ import Cardano.Balance.Tx.Balance
     )
 import Cardano.Balance.Tx.Eras
     ( AnyRecentEra (..)
+    , Conway
     , InAnyRecentEra (..)
     , IsRecentEra (recentEra)
     , RecentEra (..)
@@ -172,6 +178,8 @@ import Cardano.Balance.Tx.Tx
     , Coin (..)
     , Datum (..)
     , FeePerByte (..)
+    , RewardAccount
+    , ScriptHash
     , Tx
     , TxIn
     , TxOut
@@ -181,10 +189,15 @@ import Cardano.Balance.Tx.Tx
     , deserializeTx
     , serializeTx
     , unsafeUtxoFromTxOutsInRecentEra
+    , pattern RewardAccount
     )
+import qualified Cardano.Balance.Tx.Tx as BalanceTx
 import Cardano.Balance.Tx.TxWithUTxO
     ( pattern TxWithUTxO
     , type TxWithUTxO
+    )
+import Cardano.Slotting.Slot
+    ( SlotNo (..)
     )
 import Control.Arrow
     ( left
@@ -233,9 +246,6 @@ import Data.Either
     )
 import Data.Function
     ( (&)
-    )
-import Data.Functor
-    ( (<&>)
     )
 import Data.Functor.Identity
     ( Identity
@@ -309,9 +319,6 @@ import Ouroboros.Consensus.Config
     )
 import Ouroboros.Consensus.HardFork.History
     ( PastHorizonException
-    )
-import Ouroboros.Network.Block
-    ( SlotNo (..)
     )
 import System.Directory
     ( listDirectory
@@ -436,6 +443,12 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Ouroboros.Consensus.HardFork.History as HF
 
+type TestRecentEra era =
+    ( IsRecentEra era
+    , EqRaw (Ledger.NativeScript era)
+    , Ledger.SafeToHash (Ledger.NativeScript era)
+    )
+
 --------------------------------------------------------------------------------
 -- Specifications
 --------------------------------------------------------------------------------
@@ -451,13 +464,13 @@ spec = do
     -- called).
 
     forAllRecentEras
-        :: (forall era. (IsRecentEra era) => RecentEra era -> Spec) -> Spec
+        :: (forall era. (TestRecentEra era) => RecentEra era -> Spec) -> Spec
     forAllRecentEras tests = do
         describe "Conway" $ tests RecentEraConway
         describe "Dijkstra" $ tests RecentEraDijkstra
 
 spec_balanceTx
-    :: forall era. (IsRecentEra era) => RecentEra era -> Spec
+    :: forall era. (TestRecentEra era) => RecentEra era -> Spec
 spec_balanceTx era = describe "balanceTx" $ do
     let moreDiscardsAllowed = stdArgs{maxDiscardRatio = 100}
     it "doesn't balance transactions with existing 'totalCollateral'" $
@@ -668,6 +681,12 @@ spec_balanceTx era = describe "balanceTx" $ do
                 KeyHashObj $
                     KeyHash
                         "00000000000000000000000000000000000000000000000000000000"
+        let unRegCertWithRefund refund = case era of
+                RecentEraConway ->
+                    let _ = refund in mkUnRegCert era stakeCred
+                RecentEraDijkstra ->
+                    Dijkstra.DijkstraTxCertDeleg $
+                        Dijkstra.DijkstraUnRegCert stakeCred refund
         let partialTxWithRefund :: Coin -> PartialTx era
             partialTxWithRefund r =
                 PartialTx
@@ -676,7 +695,7 @@ spec_balanceTx era = describe "balanceTx" $ do
                             mkBasicTxBody
                                 & certsTxBodyL
                                     .~ StrictSeq.fromList
-                                        [ mkUnRegCert era stakeCred
+                                        [ unRegCertWithRefund r
                                         ]
                     , stakeKeyDeposits =
                         StakeKeyDepositMap $ Map.singleton stakeCred r
@@ -704,25 +723,38 @@ spec_balanceTx era = describe "balanceTx" $ do
 
         describe "if missing" $ do
             describe "using StakeKeyDepositMap mempty" $
-                it "fails" $
+                it "handles missing lookup appropriately" $
                     do
                         let partialTx =
                                 (partialTxWithRefund (Coin 1_000_000))
                                     { stakeKeyDeposits = StakeKeyDepositMap mempty
                                     }
-                        case balance partialTx of
-                            Left ErrBalanceTxUnresolvedRefunds{} -> return ()
-                            Right tx ->
-                                expectationFailure $
-                                    "Expected ErrBalanceTxUnresolvedRefunds; got "
-                                        <> show tx
-                            Left otherErr ->
-                                expectationFailure $
-                                    "Expected ErrBalanceTxUnresolvedRefunds; got "
-                                        <> show otherErr
+                        case era of
+                            RecentEraConway ->
+                                case balance partialTx of
+                                    Left ErrBalanceTxUnresolvedRefunds{} -> return ()
+                                    Right tx ->
+                                        expectationFailure $
+                                            "Expected ErrBalanceTxUnresolvedRefunds; got "
+                                                <> show tx
+                                    Left otherErr ->
+                                        expectationFailure $
+                                            "Expected ErrBalanceTxUnresolvedRefunds; got "
+                                                <> show otherErr
+                            RecentEraDijkstra ->
+                                case balance partialTx of
+                                    Left ErrBalanceTxUnresolvedRefunds{} -> return ()
+                                    Right tx ->
+                                        expectationFailure $
+                                            "Expected ErrBalanceTxUnresolvedRefunds; got "
+                                                <> show tx
+                                    Left otherErr ->
+                                        expectationFailure $
+                                            "Expected ErrBalanceTxUnresolvedRefunds; got "
+                                                <> show otherErr
 
             describe "using StakeKeyDepositAssumeCurrent" $
-                it "succeeds (but may be wrong)" $
+                it "succeeds" $
                     do
                         let partialTx =
                                 (partialTxWithRefund (Coin 1_000_000))
@@ -730,12 +762,15 @@ spec_balanceTx era = describe "balanceTx" $ do
                                     }
                         case balance partialTx of
                             Right tx -> do
+                                let expectedProduced = case era of
+                                        RecentEraConway -> adaProduced (Coin 2_000_000)
+                                        RecentEraDijkstra -> adaProduced (Coin 1_000_000)
                                 ( coin
                                         . getProducedValue mockPParams (error "no pool regs")
                                         . view bodyTxL
                                         $ tx
                                     )
-                                    `shouldBe` (adaProduced (Coin 2_000_000))
+                                    `shouldBe` expectedProduced
                             Left _ -> return ()
 
     describe "when passed unresolved inputs" $ do
@@ -799,10 +834,12 @@ spec_balanceTx era = describe "balanceTx" $ do
                                         ( ErrAssignRedeemersScriptFailure
                                                 _redeemer
                                                 ( ContextError
-                                                        ( BabbageContextError
-                                                                ( AlonzoContextError
-                                                                        ( TimeTranslationPastHorizon
-                                                                                _pastHoriozon
+                                                        ( DijkstraTxInfo.ConwayContextError
+                                                                ( BabbageContextError
+                                                                        ( AlonzoContextError
+                                                                                ( TimeTranslationPastHorizon
+                                                                                        _pastHoriozon
+                                                                                    )
                                                                             )
                                                                     )
                                                             )
@@ -925,14 +962,14 @@ spec_balanceTx era = describe "balanceTx" $ do
                 unsafeFromHex
                     "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
 
-    totalOutput :: (IsRecentEra era) => Tx era -> Coin
+    totalOutput :: (TestRecentEra era) => Tx era -> Coin
     totalOutput tx =
         F.foldMap (view coinTxOutL) (view (bodyTxL . outputsTxBodyL) tx)
             <> tx
                 ^. bodyTxL . feeTxBodyL
 
 balanceTxGoldenSpec
-    :: forall era. (IsRecentEra era) => RecentEra era -> Spec
+    :: forall era. (TestRecentEra era) => RecentEra era -> Spec
 balanceTxGoldenSpec era = describe "balance goldens" $ do
     it "testPParams" $
         let name = "testPParams"
@@ -1073,7 +1110,7 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
             (StakeKeyDepositMap mempty)
             mempty
       where
-        body :: TxBody era
+        body :: BalanceTx.TxBody era
         body =
             mkBasicTxBody
                 & certsTxBodyL .~ StrictSeq.fromList certs
@@ -1198,12 +1235,20 @@ _spec_estimateSignedTxSize _era = describe "estimateSignedTxSize" $ do
 
 spec_updateTx
     :: forall era. (IsRecentEra era) => RecentEra era -> Spec
-spec_updateTx _era = describe "updateTx" $ do
+spec_updateTx era = describe "updateTx" $ do
     describe "no existing key witnesses" $ do
         txs <- readTestTransactions
         forM_ txs $ \(filepath, tx :: Tx era) -> do
-            prop ("with TxUpdate: " <> filepath) $
-                prop_updateTx tx
+            case era of
+                RecentEraDijkstra
+                    | filepath == "ping-pong_1-2.bin" ->
+                        it ("with TxUpdate: " <> filepath) $
+                            pendingWith
+                                "legacy list-form redeemers are not accepted \
+                                \by Dijkstra deserialization"
+                _ ->
+                    prop ("with TxUpdate: " <> filepath) $
+                        prop_updateTx tx
 
     describe "existing key witnesses" $ do
         signedTxs <- runIO signedTxTestData
@@ -1235,7 +1280,14 @@ spec_updateTx _era = describe "updateTx" $ do
                 then pure []
                 else do
                     contents <- BS.readFile (dir </> f)
-                    pure [(f, deserializeTx $ unsafeFromHex contents)]
+                    pure [(f, deserializeForEra era $ unsafeFromHex contents)]
+
+    deserializeForEra :: RecentEra era -> ByteString -> Tx era
+    deserializeForEra = \case
+        RecentEraConway ->
+            deserializeTx
+        RecentEraDijkstra ->
+            deserializeTx . serializeTx . (deserializeTx @Conway)
 
 --------------------------------------------------------------------------------
 -- Properties
@@ -1527,8 +1579,7 @@ prop_balanceTxValid
                 succeedWithLabel "NoCostModelInLedgerState"
             ContextError e ->
                 case era of
-                    -- TODO: update when Dijkstra context errors are known
-                    RecentEraDijkstra -> prop_conwayContextError e
+                    RecentEraDijkstra -> prop_dijkstraContextError e
                     RecentEraConway -> prop_conwayContextError e
           where
             prop_babbageContextError :: BabbageContextError era -> Property
@@ -1547,6 +1598,14 @@ prop_balanceTxValid
                     succeedWithLabel "ReferenceScriptsNotSupported"
                 ReferenceInputsNotSupported _ ->
                     succeedWithLabel "ReferenceInputsNotSupported"
+
+            prop_dijkstraContextError
+                :: DijkstraTxInfo.DijkstraContextError era -> Property
+            prop_dijkstraContextError = \case
+                DijkstraTxInfo.ConwayContextError e ->
+                    prop_conwayContextError e
+                DijkstraTxInfo.PointerPresentInOutput _ ->
+                    succeedWithLabel "PointerPresentInOutput"
 
             prop_conwayContextError :: ConwayContextError era -> Property
             prop_conwayContextError = \case
@@ -1821,7 +1880,7 @@ prop_bootstrapWitnesses _era p n net accIxW addr0IxW =
     accK = Byron.deriveAccountPrivateKey rootK accIx
 
     dummyWitForIx
-        :: TxBody era -> Word32 -> BootstrapWitness
+        :: BalanceTx.TxBody era -> Word32 -> BootstrapWitness
     dummyWitForIx body ixW =
         let
             ix :: CA.Index 'CA.WholeDomain 'CA.PaymentK
@@ -1838,7 +1897,7 @@ prop_bootstrapWitnesses _era p n net accIxW addr0IxW =
             mkByronWitness body net addr (Byron.getKey addrK)
 
     mkByronWitness
-        :: TxBody era
+        :: BalanceTx.TxBody era
         -> TestNetworkId
         -> CA.Address
         -> CA.XPrv
@@ -1882,7 +1941,10 @@ data BalanceTxArgs era = BalanceTxArgs
     , seed :: !StdGenSeed
     , partialTx :: !(PartialTx era)
     }
-    deriving stock (Generic, Show)
+    deriving stock (Generic)
+
+instance Show (BalanceTxArgs era) where
+    show _ = "BalanceTxArgs {..}"
 
 instance SOP.Generic (BalanceTxArgs era)
 instance SOP.HasDatatypeInfo (BalanceTxArgs era)
@@ -1904,12 +1966,12 @@ newtype Success a = Success a
 newtype SuccessOrFailure a = SuccessOrFailure a
     deriving newtype (Show)
 
-instance (IsRecentEra era) => Arbitrary (Success (BalanceTxArgs era)) where
+instance (TestRecentEra era) => Arbitrary (Success (BalanceTxArgs era)) where
     arbitrary = coerce genBalanceTxArgsForSuccess
     shrink = coerce shrinkBalanceTxArgsForSuccess
 
 instance
-    (IsRecentEra era)
+    (TestRecentEra era)
     => Arbitrary (SuccessOrFailure (BalanceTxArgs era))
     where
     arbitrary = coerce genBalanceTxArgsForSuccessOrFailure
@@ -1917,7 +1979,7 @@ instance
 
 genBalanceTxArgsForSuccess
     :: forall era
-     . (IsRecentEra era)
+     . (TestRecentEra era)
     => Gen (BalanceTxArgs era)
 genBalanceTxArgsForSuccess =
     -- For the moment, we use the brute force tactic of repeatedly generating
@@ -1927,7 +1989,7 @@ genBalanceTxArgsForSuccess =
 
 shrinkBalanceTxArgsForSuccess
     :: forall era
-     . (IsRecentEra era)
+     . (TestRecentEra era)
     => BalanceTxArgs era
     -> [BalanceTxArgs era]
 shrinkBalanceTxArgsForSuccess =
@@ -1936,7 +1998,7 @@ shrinkBalanceTxArgsForSuccess =
 
 genBalanceTxArgsForSuccessOrFailure
     :: forall era
-     . (IsRecentEra era)
+     . (TestRecentEra era)
     => Gen (BalanceTxArgs era)
 genBalanceTxArgsForSuccessOrFailure =
     BalanceTxArgs
@@ -1951,7 +2013,7 @@ genBalanceTxArgsForSuccessOrFailure =
 
 shrinkBalanceTxArgsForSuccessOrFailure
     :: forall era
-     . (IsRecentEra era)
+     . (TestRecentEra era)
     => BalanceTxArgs era
     -> [BalanceTxArgs era]
 shrinkBalanceTxArgsForSuccessOrFailure =
@@ -2001,7 +2063,9 @@ newtype MixedSign a = MixedSign a
 
 data Wallet era
     = Wallet UTxOAssumptions (UTxO era) AnyChangeAddressGenWithState
-    deriving (Show) via ShowBuildable (Wallet era)
+
+instance Show (Wallet era) where
+    show _ = "Wallet {..}"
 
 --------------------------------------------------------------------------------
 -- Utility functions
@@ -2313,6 +2377,7 @@ dummyTimeTranslationWithHorizon horizon =
             (RelativeTime $ fromIntegral $ slotLength * (unSlotNo horizon))
             horizon
             (Slotting.EpochNo 1)
+            (HF.boundPerasRound HF.initBound)
 
     era1Params =
         HF.defaultEraParams (SecurityParam (unsafeNonZero 2)) (mkSlotLength 1)
@@ -2332,7 +2397,7 @@ dummyTimeTranslationWithHorizon horizon =
 mainnetFeePerByte :: FeePerByte
 mainnetFeePerByte = FeePerByte 44
 
-pingPong_1 :: (IsRecentEra era) => PartialTx era
+pingPong_1 :: (TestRecentEra era) => PartialTx era
 pingPong_1 = PartialTx tx mempty mempty (StakeKeyDepositMap mempty) mempty
   where
     tx =
@@ -2344,7 +2409,7 @@ pingPong_1 = PartialTx tx mempty mempty (StakeKeyDepositMap mempty) mempty
                     , "bed17320d8d1b9ff9ad086e86f44ec0200a10481d87980f5f6"
                     ]
 
-pingPong_2 :: (IsRecentEra era) => PartialTx era
+pingPong_2 :: (TestRecentEra era) => PartialTx era
 pingPong_2 =
     PartialTx
         { tx =
@@ -2410,7 +2475,9 @@ signedTxTestData = do
 
 testParameter_coinsPerUTxOByte :: Ledger.CoinPerByte
 testParameter_coinsPerUTxOByte =
-    Ledger.CoinPerByte $ Coin 4_310
+    Ledger.CoinPerByte $
+        Ledger.compactCoinOrError $
+            Coin 4_310
 
 testStdGenSeed :: StdGenSeed
 testStdGenSeed = StdGenSeed 0
@@ -2460,13 +2527,12 @@ instance Arbitrary FeePerByte where
 -- positive components, use the following instance:
 --
 instance Arbitrary (MixedSign Value) where
-    arbitrary = MixedSign <$> ((<>) <$> genNegative <*> genPositive)
-      where
-        genNegative = arbitrary <&> invert
-        genPositive = arbitrary
-    shrink (MixedSign v) = MixedSign <$> shrink v
+    arbitrary =
+        MixedSign . mergeSignedValue . getDisjointPair
+            <$> arbitrary @(DisjointPair W.TokenBundle)
+    shrink _ = []
 
-instance (IsRecentEra era) => Arbitrary (PartialTx era) where
+instance (TestRecentEra era) => Arbitrary (PartialTx era) where
     arbitrary = do
         (ptx :: PartialTx era) <- partialTxFromTxWithUTxO <$> genTxWithUTxO
         let deregCerts = F.toList $ stakeCredentialsWithRefunds $ view #tx ptx
@@ -2498,7 +2564,7 @@ instance (IsRecentEra era) => Arbitrary (PartialTx era) where
             shrinkTxWithUTxO
 
 partialTxFromTxWithUTxO
-    :: (IsRecentEra era) => TxWithUTxO era -> PartialTx era
+    :: (TestRecentEra era) => TxWithUTxO era -> PartialTx era
 partialTxFromTxWithUTxO (TxWithUTxO tx extraUTxO) =
     PartialTx
         { tx
@@ -2514,18 +2580,18 @@ partialTxFromTxWithUTxO (TxWithUTxO tx extraUTxO) =
     stakeKeyDeposits = StakeKeyDepositAssumeCurrent
 
 txWithUTxOFromPartialTx
-    :: (IsRecentEra era) => PartialTx era -> TxWithUTxO era
+    :: (TestRecentEra era) => PartialTx era -> TxWithUTxO era
 txWithUTxOFromPartialTx PartialTx{tx, extraUTxO} =
     TxWithUTxO.constructFiltered tx extraUTxO
 
-genTxWithUTxO :: (IsRecentEra era) => Gen (TxWithUTxO era)
+genTxWithUTxO :: (TestRecentEra era) => Gen (TxWithUTxO era)
 genTxWithUTxO = TxWithUTxO.generate genTxForBalancing genTxIn genTxOut
 
 shrinkTxWithUTxO
-    :: (IsRecentEra era) => TxWithUTxO era -> [TxWithUTxO era]
+    :: (TestRecentEra era) => TxWithUTxO era -> [TxWithUTxO era]
 shrinkTxWithUTxO = TxWithUTxO.shrinkWith shrinkTx shrinkUTxOToSubsets
   where
-    shrinkUTxOToSubsets :: (IsRecentEra era) => UTxO era -> [UTxO era]
+    shrinkUTxOToSubsets :: (TestRecentEra era) => UTxO era -> [UTxO era]
     shrinkUTxOToSubsets = shrinkMapBy UTxO unUTxO shrinkMapToSubmaps
 
 instance Arbitrary StdGenSeed where
@@ -2555,7 +2621,7 @@ instance Arbitrary W.TxOut where
         | bundle' <- W.shrinkTokenBundleSmallRange bundle
         ]
 
-instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
+instance forall era. (TestRecentEra era) => Arbitrary (Wallet era) where
     arbitrary =
         oneof
             [ Wallet AllKeyPaymentCredentials
@@ -2574,7 +2640,8 @@ instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
 
         genByronTxOut :: Gen (TxOut era)
         genByronTxOut =
-            (mkBasicTxOut . AddrBootstrap <$> arbitrary)
+            mkBasicTxOut
+                <$> genByronAddr
                 <*> scale (* 2) genValueForTxOut
 
         genShelleyKeyAddr :: Gen Addr
@@ -2612,11 +2679,11 @@ instance forall era. (IsRecentEra era) => Arbitrary (Wallet era) where
 
         shrinkEntry _ = []
 
-genTxForBalancing :: forall era. (IsRecentEra era) => Gen (Tx era)
+genTxForBalancing :: forall era. (TestRecentEra era) => Gen (Tx era)
 genTxForBalancing = mkBasicTx <$> genTxBodyForBalancing
 
 genTxBodyForBalancing
-    :: forall era. (IsRecentEra era) => Gen (TxBody era)
+    :: forall era. (TestRecentEra era) => Gen (BalanceTx.TxBody era)
 genTxBodyForBalancing = do
     body <- genTxBodyContent
     -- Strip collateral 90% of the time (matches original distribution)
@@ -2626,7 +2693,7 @@ genTxBodyForBalancing = do
         ]
 
 genTxBodyContent
-    :: forall era. (IsRecentEra era) => Gen (TxBody era)
+    :: forall era. (TestRecentEra era) => Gen (BalanceTx.TxBody era)
 genTxBodyContent = do
     ins <- scale (`div` 3) $ listOf1 genTxIn
     outs <-
@@ -2685,11 +2752,11 @@ genTxBodyContent = do
 
     genCert :: Gen (TxCert era)
     genCert = do
-        stakeCred <- arbitrary
+        stakeCred <- genStakeCredential
         oneof
             [ pure $ mkRegCert (recentEra @era) stakeCred
             , pure $ mkUnRegCert (recentEra @era) stakeCred
-            , mkDelegCert (recentEra @era) stakeCred <$> arbitrary
+            , mkDelegCert (recentEra @era) stakeCred <$> genStakePoolKeyHash
             ]
 
     genWithdrawals :: Gen Withdrawals
@@ -2706,7 +2773,7 @@ genTxBodyContent = do
     genWithdrawal :: Gen (RewardAccount, Coin)
     genWithdrawal =
         (,)
-            <$> (RewardAccount <$> genNetwork <*> arbitrary)
+            <$> (RewardAccount <$> genNetwork <*> genStakeCredential)
             <*> genCoinForTxOut
 
     genValidityInterval :: Gen ValidityInterval
@@ -2720,14 +2787,14 @@ genTxBodyContent = do
 genTxIn :: Gen TxIn
 genTxIn = fromWalletTxIn <$> W.genTxIn
 
-genTxOut :: forall era. (IsRecentEra era) => Gen (TxOut era)
+genTxOut :: forall era. (TestRecentEra era) => Gen (TxOut era)
 genTxOut = mkBasicTxOut <$> genAddr <*> genValueForTxOut
 
 genAddr :: Gen Addr
 genAddr =
     oneof
         [ genShelleyAddr
-        , AddrBootstrap <$> arbitrary
+        , genByronAddr
         ]
 
 genShelleyAddr :: Gen Addr
@@ -2744,17 +2811,17 @@ genNetwork =
         , (5, pure Testnet)
         ]
 
-genPaymentCredential :: Gen (Credential 'Ledger.Payment)
+genPaymentCredential :: Gen (Credential kr)
 genPaymentCredential =
     oneof
         [ KeyHashObj <$> genKeyHash'
-        , ScriptHashObj <$> arbitrary
+        , ScriptHashObj <$> genScriptHash
         ]
 
 genStakeReference :: Gen StakeReference
 genStakeReference =
     oneof
-        [ StakeRefBase <$> arbitrary
+        [ StakeRefBase <$> genStakeCredential
         , pure StakeRefNull
         ]
 
@@ -2765,6 +2832,42 @@ genKeyHash' =
         . Crypto.hashFromBytes
         . BS.pack
         <$> vectorOf 28 arbitrary
+
+genScriptHash :: Gen ScriptHash
+genScriptHash =
+    Ledger.ScriptHash
+        . fromMaybe (error "genScriptHash: invalid hash")
+        . Crypto.hashFromBytes
+        . BS.pack
+        <$> vectorOf 28 arbitrary
+
+genStakeCredential :: Gen StakeCredential
+genStakeCredential =
+    oneof
+        [ KeyHashObj <$> genKeyHash'
+        , ScriptHashObj <$> genScriptHash
+        ]
+
+genStakePoolKeyHash :: Gen (KeyHash Ledger.StakePool)
+genStakePoolKeyHash = genKeyHash'
+
+genByronAddr :: Gen Addr
+genByronAddr = do
+    ix <- choose @Int (0, 1024)
+    pure $
+        Convert.toLedgerAddress $
+            W.Address $
+                CA.unAddress $
+                    Byron.paymentAddress
+                        Byron.byronMainnet
+                        ( CA.toXPub
+                            <$> Byron.deriveAddressPrivateKey
+                                accK
+                                (CA.unsafeMkIndex $ fromIntegral ix)
+                        )
+  where
+    rootK = Byron.genMasterKeyFromMnemonic dummyMnemonic
+    accK = Byron.deriveAccountPrivateKey rootK minBound
 
 genValueForTxOut :: Gen Value
 genValueForTxOut = inject <$> genCoinForTxOut
@@ -2826,7 +2929,7 @@ mkDelegCert
      . (IsRecentEra era)
     => RecentEra era
     -> StakeCredential
-    -> KeyHash 'Ledger.StakePool
+    -> KeyHash Ledger.StakePool
     -> TxCert era
 mkDelegCert = \case
     RecentEraConway ->

@@ -20,7 +20,6 @@ module Cardano.Balance.Tx.SerializationSpec
 import Cardano.Balance.Tx.Eras
     ( Conway
     , Dijkstra
-    , IsRecentEra
     )
 import Cardano.Balance.Tx.Tx
     ( deserializeTx
@@ -68,11 +67,23 @@ spec = do
 
 -- | One test per golden CBOR file, sorted by index.
 conwayGoldenTests :: SpecWith ()
-conwayGoldenTests = goldenTestsFor @Conway
+conwayGoldenTests = do
+    files <- runIO $ do
+        let dir = $(getTestData) </> "signedTxs"
+        listCborFiles dir
+    mapM_ mkTest files
+  where
+    mkTest (name, bs) =
+        it ("round-trips " <> name) $
+            assertRoundTripConway (name, bs)
 
-{- | Dijkstra deserializes Conway CBOR identically (backwards
-compatible), except for files containing certificates without
-deposits which Dijkstra rejects.
+{- | Dijkstra deserializes Conway CBOR (backwards compatible),
+but ledger-core 1.19 canonicalizes the re-serialized bytes.
+We therefore check for a stable Dijkstra round-trip, rather
+than byte-identical output against the original Conway fixture.
+
+Files containing certificates without deposits are still
+rejected by Dijkstra.
 -}
 dijkstraGoldenTests :: SpecWith ()
 dijkstraGoldenTests = do
@@ -89,37 +100,32 @@ dijkstraGoldenTests = do
                     \not supported in Dijkstra"
         | otherwise =
             it ("round-trips " <> name) $
-                assertRoundTrip @Dijkstra (name, bs)
+                assertRoundTripDijkstra (name, bs)
 
-    -- Files containing Conway certificates without deposits,
-    -- which Dijkstra rejects at deserialization.
+    -- Files Dijkstra rejects at deserialization, either because they
+    -- contain Conway certificates without deposits or because they use
+    -- the legacy list-form redeemer encoding.
     dijkstraIncompatible =
         [ "42.cbor"
+        , "116.cbor"
+        , "117.cbor"
+        , "118.cbor"
         ]
-
-goldenTestsFor :: forall era. (IsRecentEra era) => SpecWith ()
-goldenTestsFor = do
-    files <- runIO $ do
-        let dir = $(getTestData) </> "signedTxs"
-        listCborFiles dir
-    mapM_ mkTest files
-  where
-    mkTest (name, bs) =
-        it ("round-trips " <> name) $
-            assertRoundTrip @era (name, bs)
 
 {- | Verify that deserializing and re-serializing a CBOR
 file produces identical bytes.
 -}
-assertRoundTrip
-    :: forall era
-     . (IsRecentEra era)
-    => (FilePath, BS.ByteString)
-    -> IO ()
-assertRoundTrip (_path, original) =
+assertRoundTripConway :: (FilePath, BS.ByteString) -> IO ()
+assertRoundTripConway (_path, original) =
     let roundTripped =
-            serializeTx (deserializeTx @era original)
+            serializeTx (deserializeTx @Conway original)
     in  roundTripped `shouldBe` original
+
+assertRoundTripDijkstra :: (FilePath, BS.ByteString) -> IO ()
+assertRoundTripDijkstra (_path, original) =
+    let canonical =
+            serializeTx (deserializeTx @Dijkstra original)
+    in  serializeTx (deserializeTx @Dijkstra canonical) `shouldBe` canonical
 
 listCborFiles
     :: FilePath
