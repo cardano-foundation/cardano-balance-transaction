@@ -188,18 +188,15 @@ type RecentEraConstraints era =
     , ScriptsNeeded era ~ AlonzoScriptsNeeded era
     , AlonzoEraScript era
     , Eq (Core.TxOut era)
-    , Eq (Core.Tx era)
     , Babbage.BabbageEraTxBody era
     , Alonzo.AlonzoEraTxBody era
     , Shelley.EraUTxO era
     , Core.EraTxCert era
     , Show (Core.TxOut era)
-    , Show (Core.Tx era)
     , Show (Core.PParams era)
     , Show (AlonzoScript era)
     , EraPlutusContext era
     , AllegraEraScript era
-    , Core.NativeScript era ~ Timelock era
     )
 
 instance IsRecentEra Conway where
