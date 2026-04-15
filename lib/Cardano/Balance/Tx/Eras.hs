@@ -33,7 +33,6 @@ module Cardano.Balance.Tx.Eras
 
 import Cardano.Ledger.Allegra.Scripts
     ( AllegraEraScript
-    , Timelock
     )
 import Cardano.Ledger.Alonzo.Plutus.Context
     ( EraPlutusContext

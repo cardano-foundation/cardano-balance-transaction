@@ -23,6 +23,7 @@ import Cardano.Balance.Tx.Eras
     )
 import Cardano.Balance.Tx.Tx
     ( Tx
+    , TxBody
     , TxIn
     , UTxO (UTxO)
     )
@@ -30,7 +31,7 @@ import Cardano.Ledger.Api
     ( AlonzoEraTxBody (collateralInputsTxBodyL)
     , BabbageEraTxBody (referenceInputsTxBodyL)
     , EraTx (bodyTxL)
-    , EraTxBody (TxBody, inputsTxBodyL)
+    , EraTxBody (inputsTxBodyL)
     )
 import Cardano.Ledger.Api.Tx.Body
     ( allInputsTxBodyF

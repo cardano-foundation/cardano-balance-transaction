@@ -86,6 +86,7 @@ module Cardano.Balance.Tx.Tx
 
       -- ** Rewards
     , RewardAccount
+    , pattern RewardAccount
     , StakeCredential
 
       -- ** Script
@@ -125,15 +126,13 @@ import Cardano.Crypto.Hash
     ( Hash (UnsafeHash)
     )
 import Cardano.Ledger.Allegra.Scripts
-    ( translateTimelock
+    ( Timelock
     )
 import Cardano.Ledger.Alonzo.Scripts
     ( AlonzoScript (..)
     )
 import Cardano.Ledger.Api
-    ( Tx
-    , TxBody
-    , TxOut
+    ( TxOut
     , coinTxOutL
     , eraProtVerLow
     , upgradeTxOut
@@ -145,7 +144,8 @@ import Cardano.Ledger.Babbage.TxBody
     ( BabbageTxOut (..)
     )
 import Cardano.Ledger.BaseTypes
-    ( ProtVer (..)
+    ( Network
+    , ProtVer (..)
     , StrictMaybe (..)
     , Version
     , maybeToStrictMaybe
@@ -153,6 +153,10 @@ import Cardano.Ledger.BaseTypes
     )
 import Cardano.Ledger.Coin
     ( Coin (..)
+    , CoinPerByte (..)
+    )
+import Cardano.Ledger.Compactible
+    ( fromCompact
     )
 import Cardano.Ledger.Conway.PParams
     ( ppDRepDepositL
@@ -174,6 +178,9 @@ import Cardano.Ledger.Mary
 import Cardano.Ledger.Mary.Value
     ( AssetName
     )
+import Cardano.Ledger.MemoBytes
+    ( getMemoRawType
+    )
 import Cardano.Ledger.Plutus.Data
     ( BinaryData
     , Datum (..)
@@ -181,6 +188,9 @@ import Cardano.Ledger.Plutus.Data
 import Cardano.Ledger.Val
     ( coin
     , modifyCoin
+    )
+import Cardano.Protocol.Crypto
+    ( StandardCrypto
     )
 import Control.Arrow
     ( second
@@ -212,15 +222,13 @@ import GHC.Stack
 import Numeric.Natural
     ( Natural
     )
-import Ouroboros.Consensus.Shelley.Eras
-    ( StandardCrypto
-    )
 import Prelude
 
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive.Convert as Convert
 import qualified Cardano.Crypto.Hash.Class as Crypto
 import qualified Cardano.Ledger.Address as Ledger
+import qualified Cardano.Ledger.Allegra.Scripts as Allegra
 import qualified Cardano.Ledger.Alonzo.Core as Alonzo
 import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
@@ -229,7 +237,8 @@ import qualified Cardano.Ledger.Babbage.TxBody as Babbage
 import qualified Cardano.Ledger.Binary as Binary
 import qualified Cardano.Ledger.Core as Core
 import qualified Cardano.Ledger.Credential as Core
-import qualified Cardano.Ledger.Keys as Ledger
+import qualified Cardano.Ledger.Dijkstra.Scripts as DijkstraScripts
+import qualified Cardano.Ledger.Keys as Keys
 import qualified Cardano.Ledger.Mary.Value as Value
 import qualified Cardano.Ledger.Plutus.Data as Alonzo
 import qualified Cardano.Ledger.Shelley.UTxO as Shelley
@@ -260,6 +269,9 @@ instance Monoid KeyWitnessCounts where
 -- TxIn
 --------------------------------------------------------------------------------
 
+type Tx era = Core.Tx Core.TopTx era
+type TxBody era = Core.TxBody Core.TopTx era
+
 type TxIn = Ledger.TxIn
 
 -- | Useful for testing
@@ -281,10 +293,17 @@ type TxOutInBabbage = Babbage.BabbageTxOut Conway
 
 type Address = Ledger.Addr
 
-type RewardAccount = Ledger.RewardAccount
+type RewardAccount = Ledger.AccountAddress
 type Script = AlonzoScript
 type ScriptHash = Core.ScriptHash
 type Value = MaryValue
+
+pattern RewardAccount
+    :: Network
+    -> StakeCredential
+    -> RewardAccount
+pattern RewardAccount network credential =
+    Ledger.AccountAddress network (Ledger.AccountId credential)
 
 unsafeAddressFromBytes :: ByteString -> Address
 unsafeAddressFromBytes bytes = case Ledger.decodeAddr bytes of
@@ -335,6 +354,7 @@ wrapTxOutInRecentEra out = case recentEra @era of
 
 data ErrInvalidTxOutInEra
     = InlinePlutusV4ScriptNotSupportedInConway
+    | GuardNativeScriptNotSupportedInConway
     deriving (Show, Eq)
 
 unwrapTxOutInRecentEra
@@ -375,9 +395,33 @@ recentEraToConwayTxOut (TxOutInRecentEra addr val datum mscript) =
         -> Either ErrInvalidTxOutInEra (AlonzoScript Conway)
     downgradeScript = \case
         Alonzo.NativeScript timelockEra ->
-            pure $ Alonzo.NativeScript (translateTimelock timelockEra)
+            Alonzo.NativeScript <$> downgradeNativeScript timelockEra
         PlutusScript s ->
             PlutusScript <$> downgradePlutusScript s
+
+    downgradeNativeScript
+        :: DijkstraScripts.DijkstraNativeScript Dijkstra
+        -> Either ErrInvalidTxOutInEra (Timelock Conway)
+    downgradeNativeScript =
+        \case
+            script -> case getMemoRawType script of
+                DijkstraScripts.DijkstraRequireSignature keyHash ->
+                    Right $ Allegra.mkRequireSignatureTimelock keyHash
+                DijkstraScripts.DijkstraRequireAllOf scripts ->
+                    Allegra.mkRequireAllOfTimelock
+                        <$> traverse downgradeNativeScript scripts
+                DijkstraScripts.DijkstraRequireAnyOf scripts ->
+                    Allegra.mkRequireAnyOfTimelock
+                        <$> traverse downgradeNativeScript scripts
+                DijkstraScripts.DijkstraRequireMOf required scripts ->
+                    Allegra.mkRequireMOfTimelock required
+                        <$> traverse downgradeNativeScript scripts
+                DijkstraScripts.DijkstraTimeStart slotNo ->
+                    Right $ Allegra.RequireTimeStart slotNo
+                DijkstraScripts.DijkstraTimeExpire slotNo ->
+                    Right $ Allegra.RequireTimeExpire slotNo
+                DijkstraScripts.DijkstraRequireGuard _guard ->
+                    Left GuardNativeScriptNotSupportedInConway
 
     downgradePlutusScript
         :: PlutusScript Dijkstra
@@ -549,9 +593,11 @@ getFeePerByte
     -> FeePerByte
 getFeePerByte pp =
     unsafeCoinToFee $
-        case recentEra @era of
-            RecentEraConway -> pp ^. Core.ppMinFeeAL
-            RecentEraDijkstra -> pp ^. Core.ppMinFeeAL
+        fromCompact $
+            unCoinPerByte $
+                case recentEra @era of
+                    RecentEraConway -> pp ^. Core.ppTxFeePerByteL
+                    RecentEraDijkstra -> pp ^. Core.ppTxFeePerByteL
   where
     unsafeCoinToFee :: Coin -> FeePerByte
     unsafeCoinToFee =
@@ -612,9 +658,6 @@ evaluateTransactionBalance pp depositLookup =
     -- TODO [ADP-3404] Query actual value of deposit
     --
     -- https://cardanofoundation.atlassian.net/browse/ADP-3404
-    dRepDepositAssumeCurrent
-        :: Core.Credential 'Ledger.DRepRole
-        -> Maybe Coin
     dRepDepositAssumeCurrent _drepCred = case recentEra @era of
         RecentEraConway -> Just $ pp ^. ppDRepDepositL
         RecentEraDijkstra -> Just $ pp ^. ppDRepDepositL
@@ -628,9 +671,6 @@ evaluateTransactionBalance pp depositLookup =
     -- TODO [ADP-3274] Query actual registration status
     --
     -- https://cardanofoundation.atlassian.net/browse/ADP-3274
-    assumePoolIsReg
-        :: Ledger.KeyHash 'Ledger.StakePool
-        -> Bool
     assumePoolIsReg _keyHash = True
 
 --------------------------------------------------------------------------------
@@ -649,4 +689,4 @@ pattern PolicyId h = Value.PolicyID h
 -- Stake Credential
 --------------------------------------------------------------------------------
 
-type StakeCredential = Core.StakeCredential
+type StakeCredential = Core.Credential Keys.Staking

@@ -59,7 +59,7 @@ mkTokenBundleSizeAssessor pp = TokenBundleSizeAssessor $ \csBundle ->
             else TokenBundleSizeWithinLimit
   where
     maxValSize :: W.TxSize
-    maxValSize = W.TxSize $ pp ^. ppMaxValSizeL
+    maxValSize = W.TxSize $ fromIntegral $ pp ^. ppMaxValSizeL
 
     ver :: Version
     ver = pvMajor $ pp ^. ppProtocolVersionL

@@ -1,9 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -34,7 +36,8 @@ module Cardano.Balance.Tx.Sign
 where
 
 import Cardano.Balance.Tx.Eras
-    ( IsRecentEra (..)
+    ( Dijkstra
+    , IsRecentEra (..)
     , RecentEra (..)
     )
 import Cardano.Balance.Tx.Primitive
@@ -43,18 +46,15 @@ import Cardano.Balance.Tx.Primitive
 import Cardano.Balance.Tx.Tx
     ( KeyWitnessCounts (..)
     , PParams
+    , RewardAccount
     , Script
+    , StakeCredential
     , Tx
     , TxIn
     , UTxO
     , feeOfBytes
     , getFeePerByte
-    )
-import Cardano.Ledger.Address
-    ( RewardAccount (..)
-    )
-import Cardano.Ledger.Allegra.Scripts
-    ( Timelock
+    , pattern RewardAccount
     )
 import Cardano.Ledger.Api
     ( Addr (..)
@@ -77,7 +77,9 @@ import Cardano.Ledger.Coin
     )
 import Cardano.Ledger.Credential
     ( Credential (..)
-    , StakeCredential
+    )
+import Cardano.Ledger.MemoBytes
+    ( getMemoRawType
     )
 import Cardano.Ledger.State
     ( EraUTxO (getScriptsHashesNeeded, getScriptsNeeded)
@@ -122,6 +124,7 @@ import qualified Cardano.Ledger.Alonzo.Core as Alonzo
 import qualified Cardano.Ledger.Alonzo.Scripts as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
 import qualified Cardano.Ledger.Conway.TxCert as Conway
+import qualified Cardano.Ledger.Dijkstra.Scripts as DijkstraScripts
 import qualified Cardano.Ledger.Dijkstra.TxCert as Dijkstra
 import qualified Data.Foldable as F
 import qualified Data.List as L
@@ -263,7 +266,7 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
             :: Map (ScriptHash) Natural
         upperBoundEstimatedTimelockKeyWitnessCounts =
             Map.mapMaybe
-                ( fmap (estimateMaxWitnessRequiredPerInput . toCAScript)
+                ( fmap estimateMaxWitnessRequiredPerNativeScript
                     . toTimelockScript
                 )
                 -- TODO [ADP-2675]
@@ -319,13 +322,39 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
             KeyHashObj _ -> 1
             ScriptHashObj _ -> 0
 
-    toCAScript = Convert.toWalletScript (const dummyKeyRole)
-      where
-        dummyKeyRole = CA.Payment
+    estimateMaxWitnessRequiredPerNativeScript
+        :: Ledger.NativeScript era
+        -> Natural
+    estimateMaxWitnessRequiredPerNativeScript = case recentEra @era of
+        RecentEraConway ->
+            estimateMaxWitnessRequiredPerInput
+                . Convert.toWalletScript (const CA.Payment)
+        RecentEraDijkstra ->
+            estimateMaxWitnessRequiredPerDijkstraScript
+
+    estimateMaxWitnessRequiredPerDijkstraScript
+        :: DijkstraScripts.DijkstraNativeScript Dijkstra
+        -> Natural
+    estimateMaxWitnessRequiredPerDijkstraScript script =
+        case getMemoRawType script of
+            DijkstraScripts.DijkstraRequireSignature _ ->
+                1
+            DijkstraScripts.DijkstraRequireAllOf scripts ->
+                sum $ estimateMaxWitnessRequiredPerDijkstraScript <$> scripts
+            DijkstraScripts.DijkstraRequireAnyOf scripts ->
+                sum $ estimateMaxWitnessRequiredPerDijkstraScript <$> scripts
+            DijkstraScripts.DijkstraRequireMOf _ scripts ->
+                sum $ estimateMaxWitnessRequiredPerDijkstraScript <$> scripts
+            DijkstraScripts.DijkstraTimeStart _ ->
+                0
+            DijkstraScripts.DijkstraTimeExpire _ ->
+                0
+            DijkstraScripts.DijkstraRequireGuard _ ->
+                0
 
     toTimelockScript
         :: Ledger.Script era
-        -> Maybe (Timelock era)
+        -> Maybe (Ledger.NativeScript era)
     toTimelockScript (Alonzo.NativeScript timelock) = Just timelock
     toTimelockScript (Alonzo.PlutusScript _) = Nothing
 
