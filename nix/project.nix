@@ -9,7 +9,8 @@ let
       fourmolu = { index-state = indexState; };
       hlint = { index-state = indexState; };
     };
-    withHoogle = true;
+    # GHC 9.12.2 haddock panics on tyConStupidTheta; disable until fixed
+    withHoogle = false;
     buildInputs = [
       pkgs.just
       pkgs.nixfmt-classic
