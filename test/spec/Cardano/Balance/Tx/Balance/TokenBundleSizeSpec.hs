@@ -47,9 +47,6 @@ import Data.Monoid.Monus
 import Data.Word
     ( Word32
     )
-import Numeric.Natural
-    ( Natural
-    )
 import Test.Hspec
     ( Spec
     , describe
@@ -272,7 +269,7 @@ instance Arbitrary PParamsInRecentEra where
                     & ppProtocolVersionL .~ (ProtVer ver 0)
                     & ppMaxValSizeL .~ maxSize
           where
-            genMaxSizeBytes :: Gen Natural
+            genMaxSizeBytes :: Gen Word32
             genMaxSizeBytes =
                 oneof
                     [ fromIntegral . max 0 . (4000 +) <$> arbitrary @Int

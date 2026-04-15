@@ -9,6 +9,13 @@ let
       fourmolu = { index-state = indexState; };
       hlint = { index-state = indexState; };
     };
+    additional = hsPkgs:
+      with hsPkgs; [
+        cardano-ledger-alonzo.components.sublibs.testlib
+        cardano-ledger-babbage.components.sublibs.testlib
+        cardano-ledger-conway.components.sublibs.testlib
+        cardano-ledger-mary.components.sublibs.testlib
+      ];
     # GHC 9.12.2 haddock panics on tyConStupidTheta; disable until fixed
     withHoogle = false;
     buildInputs = [
