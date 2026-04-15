@@ -14,11 +14,11 @@ repository cardano-haskell-packages
     c00aae8461a256275598500ea0e187588c35a5d5d7454fb57eac18d9edb86a56
     d4a35cd3121aa00d18544bb0ac01c3e1691d618f462c46129271bccf39f7e8ee
 
-index-state: 2026-01-29T00:00:00Z
+index-state: 2026-02-14T00:39:24Z
 
 index-state:
-  , hackage.haskell.org 2026-01-29T00:00:00Z
-  , cardano-haskell-packages 2026-02-09T17:36:58Z
+  , hackage.haskell.org 2026-02-14T00:39:24Z
+  , cardano-haskell-packages 2026-03-23T18:21:55Z
 
 packages:
   .
@@ -49,6 +49,8 @@ allow-newer:
   , cardano-cli:cardano-api
   , si-timers:io-classes
   , hkd:base
+  , quickcheck-state-machine:random
+  , cardano-coin-selection:random
 
 constraints:
     base >= 4.18.2.0 && < 5
