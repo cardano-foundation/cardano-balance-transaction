@@ -202,9 +202,6 @@ import Control.Monad.Trans.State
     ( runState
     , state
     )
-import Data.Bits
-    ( Bits
-    )
 import Data.Function
     ( on
     , (&)
@@ -258,9 +255,6 @@ import Fmt
 import GHC.Generics
     ( Generic
     )
-import GHC.Stack
-    ( HasCallStack
-    )
 import Numeric.Natural
     ( Natural
     )
@@ -283,6 +277,7 @@ import qualified Cardano.CoinSelection.Types.TokenBundle as CS
 import qualified Cardano.CoinSelection.UTxOIndex as UTxOIndex
 import qualified Cardano.CoinSelection.UTxOSelection as UTxOSelection
 import qualified Cardano.Ledger.Core as Core
+import qualified Cardano.Ledger.Dijkstra.Scripts as DijkstraScripts
 import qualified Cardano.Ledger.Val as Val
     ( coin
     )
@@ -1078,9 +1073,11 @@ selectAssets
                         ]
                         <\> boringFee
                 , maximumCollateralInputCount =
-                    unsafeIntCast @Natural @Int $ pp ^. ppMaxCollateralInputsL
+                    fromMaybe
+                        (error "maximumCollateralInputCount exceeds Int range")
+                        (intCastMaybe $ pp ^. ppMaxCollateralInputsL)
                 , minimumCollateralPercentage =
-                    pp ^. ppCollateralPercentageL
+                    fromIntegral $ pp ^. ppCollateralPercentageL
                 , maximumLengthChangeAddress =
                     Convert.fromLedgerAddress changeGen.maxLengthChangeAddress
                 }
@@ -1241,14 +1238,6 @@ assignChangeAddresses (ChangeAddressGen genChange _) sel = runState $ do
         pure $ W.TxOut (Convert.fromLedgerAddress addr) bundle
     pure $ set #change changeOuts sel
 
-unsafeIntCast
-    :: (HasCallStack, Integral a, Integral b, Bits a, Bits b, Show a)
-    => a
-    -> b
-unsafeIntCast x = fromMaybe err $ intCastMaybe x
-  where
-    err = error $ "unsafeIntCast failed for " <> show x
-
 mergeSignedValue :: (W.TokenBundle, W.TokenBundle) -> Value
 mergeSignedValue (bNegative, bPositive) = vNegative <> vPositive
   where
@@ -1368,7 +1357,10 @@ updateTx tx extraContent = do
         -> Core.Script era
     toLedgerScript s = \case
         RecentEraConway -> NativeScript $ Convert.toLedgerTimelockScript s
-        RecentEraDijkstra -> NativeScript $ Convert.toLedgerTimelockScript s
+        RecentEraDijkstra ->
+            NativeScript $
+                DijkstraScripts.upgradeTimelock $
+                    Convert.toLedgerTimelockScript s
 
 modifyShelleyTxBody
     :: forall era

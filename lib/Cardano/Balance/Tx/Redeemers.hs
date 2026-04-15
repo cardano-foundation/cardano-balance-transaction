@@ -37,13 +37,13 @@ import Cardano.Balance.Tx.Tx
     ( PParams
     , PolicyId
     , RewardAccount
+    , Tx
     , TxIn
     , UTxO
     )
 import Cardano.Ledger.Api
     ( AsItem (..)
     , TransactionScriptFailure
-    , Tx
     , bodyTxL
     , rdmrsTxWitsL
     , scriptIntegrityHashTxBodyL

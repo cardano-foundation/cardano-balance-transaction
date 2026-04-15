@@ -33,7 +33,6 @@ import Cardano.Ledger.Api
     )
 import Cardano.Ledger.Babbage.PParams
     ( BabbagePParams (..)
-    , CoinPerByte (..)
     )
 import Cardano.Ledger.BaseTypes
     ( BoundedRational (..)
@@ -44,6 +43,7 @@ import Cardano.Ledger.BaseTypes
     )
 import Cardano.Ledger.Coin
     ( Coin (..)
+    , CoinPerByte (..)
     , CompactForm (CompactCoin)
     )
 import Cardano.Ledger.Conway.PParams
@@ -172,9 +172,9 @@ mockPParams = case recentEra @era of
     babbagePParams :: BabbagePParams Identity BabbageEra
     babbagePParams =
         BabbagePParams
-            { bppMinFeeA = Coin 44
+            { bppTxFeePerByte = CoinPerByte (CompactCoin 44)
             , -- \^ The linear factor for the minimum fee calculation
-              bppMinFeeB = Coin 155_381
+              bppTxFeeFixed = CompactCoin 155_381
             , -- \^ The constant factor for the minimum fee calculation
               bppMaxBBSize = 100_000
             , -- \^ Maximal block body size
@@ -182,7 +182,7 @@ mockPParams = case recentEra @era of
             , -- \^ Maximal transaction size
               bppMaxBHSize = 1_100
             , -- \^ Maximal block header size
-              bppKeyDeposit = Coin 2_000_000
+              bppKeyDeposit = CompactCoin 2_000_000
             , -- \^ The amount of a key registration deposit
               bppPoolDeposit = CompactCoin 500_000_000
             , -- \^ The amount of a pool registration deposit
@@ -199,9 +199,9 @@ mockPParams = case recentEra @era of
             , -- \^ Treasury expansion
               bppProtocolVersion = ProtVer (natVersion @6) 0
             , -- \^ Protocol version
-              bppMinPoolCost = Coin 170_000_000
+              bppMinPoolCost = CompactCoin 170_000_000
             , -- \^ Minimum Stake Pool Cost
-              bppCoinsPerUTxOByte = CoinPerByte (Coin 4_310)
+              bppCoinsPerUTxOByte = CoinPerByte (CompactCoin 4_310)
             , -- \^ Cost in lovelace per byte of UTxO storage (instead of bppCoinsPerUTxOByte)
               bppCostModels = babbageCostModels
             , -- \^ Cost models for non-native script languages
