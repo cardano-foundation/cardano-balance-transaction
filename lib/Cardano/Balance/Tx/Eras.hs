@@ -85,6 +85,9 @@ import qualified Cardano.Ledger.Alonzo.Core as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
 import qualified Cardano.Ledger.Babbage.TxBody as Babbage
 import qualified Cardano.Ledger.Core as Core
+import Cardano.Ledger.MemoBytes
+    ( EqRaw
+    )
 import qualified Cardano.Ledger.Shelley.UTxO as Shelley
 import qualified Data.Set as Set
 
@@ -196,6 +199,11 @@ type RecentEraConstraints era =
     , Show (AlonzoScript era)
     , EraPlutusContext era
     , AllegraEraScript era
+    , -- EqRaw (NativeScript era) is not a superclass of EraScript but is
+      -- required by downstream consumers (cardano-wallet) when GHC resolves
+      -- the full superclass chain through EraTx/EraTxWits/EraScript.
+      -- All recent eras (Conway, Dijkstra) have this instance.
+      EqRaw (Core.NativeScript era)
     )
 
 instance IsRecentEra Conway where
