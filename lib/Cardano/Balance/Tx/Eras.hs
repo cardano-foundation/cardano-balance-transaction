@@ -85,6 +85,9 @@ import qualified Cardano.Ledger.Alonzo.Core as Alonzo
 import qualified Cardano.Ledger.Api as Ledger
 import qualified Cardano.Ledger.Babbage.TxBody as Babbage
 import qualified Cardano.Ledger.Core as Core
+import Cardano.Ledger.Hashes
+    ( SafeToHash
+    )
 import Cardano.Ledger.MemoBytes
     ( EqRaw
     )
@@ -204,6 +207,7 @@ type RecentEraConstraints era =
       -- the full superclass chain through EraTx/EraTxWits/EraScript.
       -- All recent eras (Conway, Dijkstra) have this instance.
       EqRaw (Core.NativeScript era)
+    , SafeToHash (Core.NativeScript era)
     )
 
 instance IsRecentEra Conway where
