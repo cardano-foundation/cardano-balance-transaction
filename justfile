@@ -29,21 +29,22 @@ hlint:
     #!/usr/bin/env bash
     hlint lib test
 
-# Build all components
+# Build all components through the same flake path used by CI
 build:
     #!/usr/bin/env bash
-    cabal build all -O0 --enable-tests
+    nix build --accept-flake-config --allow-import-from-derivation --quiet \
+        .#lib .#unit-tests
 
 # Run unit tests with optional match pattern
 unit match="":
     #!/usr/bin/env bash
     if [[ '{{ match }}' == "" ]]; then
-        cabal test unit -O0 --enable-tests --test-show-details=direct
+        nix run --accept-flake-config --allow-import-from-derivation --quiet \
+            .#unit-tests
     else
-        cabal test unit -O0 --enable-tests \
-            --test-show-details=direct \
-            --test-option=--match \
-            --test-option="{{ match }}"
+        nix run --accept-flake-config --allow-import-from-derivation --quiet \
+            .#unit-tests -- \
+            --match "{{ match }}"
     fi
 
 # Full CI pipeline
