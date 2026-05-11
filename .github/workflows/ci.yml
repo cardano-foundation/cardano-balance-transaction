@@ -27,13 +27,13 @@ jobs:
         run: nix run .#unit-tests --quiet
 
       - name: Fourmolu
-        run: nix develop --command fourmolu -m check lib test
+        run: nix develop .#ci --command fourmolu -m check lib test
 
       - name: HLint
-        run: nix develop --command hlint lib test
+        run: nix develop .#ci --command hlint lib test
 
       - name: Nixfmt
-        run: nix develop --command nixfmt --check flake.nix nix/*.nix
+        run: nix develop .#ci --command nixfmt --check flake.nix nix/*.nix
 
   docs:
     runs-on: ubuntu-latest

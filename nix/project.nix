@@ -16,8 +16,7 @@ let
         cardano-ledger-conway.components.sublibs.testlib
         cardano-ledger-mary.components.sublibs.testlib
       ];
-    # GHC 9.12.2 haddock panics on tyConStupidTheta; disable until fixed
-    withHoogle = false;
+    withHoogle = true;
     buildInputs = [
       pkgs.just
       pkgs.nixfmt-classic
@@ -27,12 +26,19 @@ let
       pkgs.haskellPackages.cabal-fmt
     ];
   };
+  ciShell = { pkgs, ... }: {
+    tools = {
+      fourmolu = { index-state = indexState; };
+      hlint = { index-state = indexState; };
+    };
+    withHoogle = false;
+    buildInputs = [ pkgs.just pkgs.nixfmt-classic ];
+  };
 
   mkProject = { lib, pkgs, ... }: {
     name = "cardano-balance-tx";
     src = ./..;
-    compiler-nix-name = "ghc9122";
-    shell = shell { inherit pkgs; };
+    compiler-nix-name = "ghc9123";
     inputMap = { "https://chap.intersectmbo.org/" = CHaP; };
     modules = [
       ({ lib, pkgs, ... }: {
@@ -47,7 +53,10 @@ let
   project = pkgs.haskell-nix.cabalProject' mkProject;
 
 in {
-  devShells.default = project.shell;
+  devShells = {
+    default = project.shellFor shell;
+    ci = project.shellFor ciShell;
+  };
   inherit project;
   packages.lib = project.hsPkgs.cardano-balance-tx.components.library;
   packages.unit-tests = project.hsPkgs.cardano-balance-tx.components.tests.unit;
