@@ -29,8 +29,9 @@ length allowed by the ledger. Exports `TokenBundleSizeAssessor`,
 
 ### `Cardano.Balance.Tx.Eras`
 
-Era definitions. The `RecentEra` GADT covers Babbage and Conway,
-with associated type families and constraints.
+Era definitions. The `RecentEra` GADT covers the two most recent eras
+— Conway and Dijkstra — with associated type families and constraints
+(`IsRecentEra`, `RecentEraConstraints`, `AnyRecentEra`).
 
 ### `Cardano.Balance.Tx.Primitive`
 
@@ -45,9 +46,12 @@ Conversions between primitive types and ledger types. Replaces
 
 ### `Cardano.Balance.Tx.Tx`
 
-Transaction-level types: `KeyWitnessCounts`, partial transaction
-construction, and serialization utilities. Covers both Babbage and
-Conway representations.
+Transaction and protocol-parameter types: `KeyWitnessCounts`,
+`PParamsInAnyRecentEra`, transaction serialization (`serializeTx`,
+`deserializeTx`), `TxOut` handling, and minimum-ada computation
+(`computeMinimumCoinForTxOut`). The underlying `TxOut` representation is
+the shared `BabbageTxOut`, reused by both recent eras (Conway and
+Dijkstra).
 
 ### `Cardano.Balance.Tx.TxWithUTxO`
 
@@ -64,7 +68,12 @@ input set, redeemer indices must be updated to match the new ordering.
 
 ### `Cardano.Balance.Tx.Sign`
 
-Transaction signing utilities for the balancing process.
+Signing-related size and fee estimation required during balancing.
+Exports `estimateSignedTxSize`, `estimateSignedTxMinFee`,
+`KeyWitnessCounts`, `TimelockKeyWitnessCounts`, and the witness-count
+estimators (`estimateKeyWitnessCounts`,
+`estimateMaxWitnessRequiredPerInput`). (Actual transaction signing is
+not yet implemented here — see the module's `TODO`.)
 
 ### `Cardano.Balance.Tx.SizeEstimation`
 

@@ -10,13 +10,13 @@ fully balanced, ready-to-sign transaction.
 
 The library handles coin selection, fee estimation, change construction,
 surplus distribution, token bundle size validation, Plutus redeemer
-assignment, and transaction size estimation across Babbage and Conway
-eras.
+assignment, and transaction size estimation across the Conway and
+Dijkstra eras.
 
 ```mermaid
 flowchart LR
-    A["Partial Tx\n+ UTxO\n+ Protocol Params"] --> B["balanceTx"]
-    B --> C["Balanced Tx\n(ready to sign)"]
+    A["Partial Tx<br/>+ UTxO<br/>+ Protocol Params"] --> B["balanceTx"]
+    B --> C["Balanced Tx<br/>(ready to sign)"]
 ```
 
 ## Getting started
