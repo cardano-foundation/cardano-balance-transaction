@@ -1,12 +1,26 @@
 site_name: cardano-balance-tx
 site_description: Standalone Cardano transaction balancing library
+site_url: https://cardano-foundation.github.io/cardano-balance-transaction/
 repo_url: https://github.com/cardano-foundation/cardano-balance-transaction
 theme:
   name: material
   palette:
-    scheme: slate
-    primary: blue
-    accent: light blue
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
     - navigation.sections
     - content.code.copy

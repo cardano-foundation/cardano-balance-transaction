@@ -12,13 +12,13 @@ signing. The core entry point is `balanceTx` in
 ```mermaid
 flowchart TD
     A["Partial Tx + UTxO + Protocol Params"] --> B
-    B["1. Coin Selection\n(CoinSelection)"]
+    B["1. Coin Selection<br/>(CoinSelection)"]
     B -- "inputs selected" --> C
-    C["2. Fee Estimation\n(SizeEstimation)"]
+    C["2. Fee Estimation<br/>(SizeEstimation, Sign)"]
     C -- "fee computed" --> D
-    D["3. Change Outputs\n(Surplus, TokenBundleSize)"]
+    D["3. Change Outputs<br/>(Surplus, TokenBundleSize)"]
     D -- "change distributed" --> E
-    E["4. Redeemer Assignment\n(Redeemers)"]
+    E["4. Redeemer Assignment<br/>(Redeemers)"]
     E -- "redeemers reindexed" --> F
     F["5. Validation"]
     F --> G["Balanced Tx (ready to sign)"]
@@ -55,9 +55,10 @@ The library is organized into three layers:
 - **`Primitive`** — lightweight value types (coin, token bundle,
   address) inlined from `cardano-wallet-primitive`, bridging to ledger
   types via `Primitive.Convert`
-- **`Tx`** — transaction-level types, key witness counting
+- **`Tx`** — transaction/PParams types, serialization, key witness
+  counting, minimum-ada computation
 - **`TxWithUTxO`** — a transaction paired with its resolved UTxO context
-- **`Eras`** — era definitions (`RecentEra` covering Babbage/Conway)
+- **`Eras`** — era definitions (`RecentEra` covering Conway/Dijkstra)
 
 ### Balancing logic
 
@@ -73,7 +74,8 @@ The library is organized into three layers:
 
 - **`SizeEstimation`** — predicting serialized transaction size
 - **`Redeemers`** — assigning script redeemer indices
-- **`Sign`** — transaction signing
+- **`Sign`** — signing-related size/fee estimation and witness counting
+  (`estimateSignedTxSize`, `estimateSignedTxMinFee`, `KeyWitnessCounts`)
 - **`TimeTranslation`** — slot/time conversion from epoch info
 - **`UTxOAssumptions`** — assumptions about UTxO script types for size
   estimation
@@ -110,6 +112,10 @@ graph TD
 
 ## Era support
 
-The library uses a `RecentEra` GADT to support Babbage and Conway. All
-era-specific logic is isolated in `Eras` and pattern-matched where
-needed, keeping the core balancing algorithm era-polymorphic.
+The library uses a `RecentEra` GADT to support the two most recent eras
+— Conway and Dijkstra — so the same code can construct transactions on
+either side of a hard fork. All era-specific logic is isolated in `Eras`
+and pattern-matched where needed, keeping the core balancing algorithm
+era-polymorphic. (Babbage and earlier are modelled as non-recent eras;
+serialization round-trip tests still cover Babbage golden fixtures for
+backwards compatibility.)
