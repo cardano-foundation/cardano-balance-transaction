@@ -23,7 +23,7 @@ jobs:
   publish:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
+    runs-on: nix-enabled-runners
     steps:
       - uses: actions/checkout@v6
 

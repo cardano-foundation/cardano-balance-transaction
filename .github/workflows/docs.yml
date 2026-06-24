@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: nix-enabled-runners
     steps:
       - uses: actions/checkout@v6
       - uses: paolino/dev-assets/setup-nix@v0.0.1
