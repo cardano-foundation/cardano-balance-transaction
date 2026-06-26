@@ -12,13 +12,14 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: nix-enabled-runners
     steps:
       - uses: actions/checkout@v6
 
-      - uses: paolino/dev-assets/setup-nix@v0.0.1
+      - uses: cachix/cachix-action@v15
         with:
-          cachix-auth-token: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          name: paolino
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       - name: Build
         run: nix build .#lib --quiet
@@ -36,10 +37,11 @@ jobs:
         run: nix develop .#ci --command nixfmt --check flake.nix nix/*.nix
 
   docs:
-    runs-on: ubuntu-latest
+    runs-on: nix-enabled-runners
     steps:
       - uses: actions/checkout@v6
-      - uses: paolino/dev-assets/setup-nix@v0.0.1
+      - uses: cachix/cachix-action@v15
         with:
-          cachix-auth-token: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          name: paolino
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
       - run: nix develop github:paolino/dev-assets?dir=mkdocs -c mkdocs build --strict
