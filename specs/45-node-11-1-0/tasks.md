@@ -14,6 +14,6 @@ Slice **S1** (OWNER).
 - [ ] **T005** Mechanical Haskell adaptation. Report dijkstra
       0.3.0.0 surface. Hunt unpinned seed-like values.
 - [ ] **T006** fourmolu + hlint on touched Haskell.
-- [ ] **T007** `nix develop` `cabal build all --enable-tests -O0`
-      and `cabal test unit --enable-tests -O0`. Confirm
-      coin-selection SRP needs no bump (or report).
+- [ ] **T007** `nix build .#lib .#unit-tests` and
+      `nix run .#unit-tests` (Q1). Confirm coin-selection SRP needs
+      no bump (or report).

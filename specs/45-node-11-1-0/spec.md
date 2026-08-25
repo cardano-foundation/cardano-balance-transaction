@@ -55,10 +55,13 @@ Issue: https://github.com/cardano-foundation/cardano-balance-transaction/issues/
   `haskellNix/hackage` to
   `1d6c4337df9348ef6a1c21f7dfd47e9b9a454ccf` (node 11.1.0). Do not
   bump `haskellNix` itself unless that fails (then Q).
-- **FR-BUILD.** Repo own `nix develop --quiet --accept-flake-config
-  --no-write-lock-file -c cabal build all --enable-tests -O0`.
-- **FR-TEST.** Same shell, `cabal test unit --enable-tests -O0`.
-  Failures recorded with cause.
+- **FR-BUILD.** This repo's CI path (Q1): `nix build --accept-flake-config
+  --allow-import-from-derivation --quiet --no-write-lock-file .#lib .#unit-tests`.
+  (`just build`.) cabal-in-shell is unsatisfiable here against haskell.nix
+  installed `:testlib` units; that is pre-existing, not a pin-set defect.
+- **FR-TEST.** `nix run --accept-flake-config --allow-import-from-derivation
+  --quiet --no-write-lock-file .#unit-tests` (`just unit`). Failures recorded
+  with cause.
 - **FR-ADAPT.** Mechanical only. Same five #21 adaptations if this
   tree uses those APIs. Hunt unpinned values the adaptation
   changes; if old==new, one assertion proven able to fail; if

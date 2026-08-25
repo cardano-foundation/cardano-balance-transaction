@@ -35,4 +35,6 @@ found.
 Forbidden: extra constraint members, invented versions, SRP bump,
 tracked gitignore harness paths, other repos, GPG, push.
 
-Build: repo `nix develop`, not a bare `nix shell`.
+Build: this repo's CI (`just build` / `just unit` = `nix build` /
+`nix run` of flake packages). Not a bare `nix shell`. cabal-in-shell
+is not the gate (Q1).
