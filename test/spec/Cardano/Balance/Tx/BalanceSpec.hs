@@ -320,6 +320,7 @@ import Ouroboros.Consensus.Config
 import Ouroboros.Consensus.HardFork.History
     ( PastHorizonException
     )
+import Prelude
 import System.Directory
     ( listDirectory
     )
@@ -410,7 +411,6 @@ import Test.Utils.Pretty
 import Text.Read
     ( readMaybe
     )
-import Prelude
 
 import qualified Cardano.Address as CA
 import qualified Cardano.Address.Derivation as CA
@@ -473,13 +473,13 @@ spec_balanceTx
     :: forall era. (TestRecentEra era) => RecentEra era -> Spec
 spec_balanceTx era = describe "balanceTx" $ do
     let moreDiscardsAllowed = stdArgs{maxDiscardRatio = 100}
-    it "doesn't balance transactions with existing 'totalCollateral'" $
-        quickCheckWith moreDiscardsAllowed $
-            prop_balanceTxExistingTotalCollateral era
+    it "doesn't balance transactions with existing 'totalCollateral'"
+        $ quickCheckWith moreDiscardsAllowed
+        $ prop_balanceTxExistingTotalCollateral era
 
-    it "doesn't balance transactions with existing 'returnCollateral'" $
-        quickCheckWith moreDiscardsAllowed $
-            prop_balanceTxExistingReturnCollateral era
+    it "doesn't balance transactions with existing 'returnCollateral'"
+        $ quickCheckWith moreDiscardsAllowed
+        $ prop_balanceTxExistingReturnCollateral era
 
     it "does not balance transactions if no inputs can be created" $
         property (prop_balanceTxUnableToCreateInput era)
@@ -506,13 +506,13 @@ spec_balanceTx era = describe "balanceTx" $ do
 
         let evaluateMinimumFeeSize :: Tx era -> Natural
             evaluateMinimumFeeSize tx =
-                fromIntegral $
-                    Write.unCoin $
-                        estimateSignedTxMinFee
-                            pp
-                            inputsHaveNoRefScripts
-                            (withNoKeyWits tx)
-                            (KeyWitnessCounts 0 (fromIntegral $ length wits))
+                fromIntegral
+                    $ Write.unCoin
+                    $ estimateSignedTxMinFee
+                        pp
+                        inputsHaveNoRefScripts
+                        (withNoKeyWits tx)
+                        (KeyWitnessCounts 0 (fromIntegral $ length wits))
               where
                 wits = tx ^. witsTxL . bootAddrTxWitsL
 
@@ -595,9 +595,9 @@ spec_balanceTx era = describe "balanceTx" $ do
         let nChange = max nPayments 1
         let changeState0 = DummyChangeState 0
         let expectedChange =
-                flip evalState changeState0 $
-                    replicateM nChange $
-                        state @Identity dummyChangeAddrGen.genChangeAddress
+                flip evalState changeState0
+                    $ replicateM nChange
+                    $ state @Identity dummyChangeAddrGen.genChangeAddress
 
         let
             address :: TxOut era -> Address
@@ -617,9 +617,9 @@ spec_balanceTx era = describe "balanceTx" $ do
         let (out :: TxOut era) = mkBasicTxOut dummyAddr (lovelace 0)
         let (out' :: TxOut era) = mkBasicTxOut dummyAddr (lovelace 866_310)
         let tx =
-                either (error . show) id $
-                    balance $
-                        paymentPartialTx [out]
+                either (error . show) id
+                    $ balance
+                    $ paymentPartialTx [out]
         let outs = F.toList $ tx ^. bodyTxL . outputsTxBodyL
 
         let pp = case era of
@@ -932,13 +932,13 @@ spec_balanceTx era = describe "balanceTx" $ do
     dustWallet = mkTestWallet dustUTxO
     dustUTxO :: UTxO era
     dustUTxO =
-        UTxO $
-            Map.fromList $
-                [ ( Convert.toLedgerTxIn $ W.TxIn (B8.replicate 32 '1') ix
-                  , mkBasicTxOut dummyAddr (ada 1)
-                  )
-                | ix <- [0 .. 500]
-                ]
+        UTxO
+            $ Map.fromList
+            $ [ ( Convert.toLedgerTxIn $ W.TxIn (B8.replicate 32 '1') ix
+                , mkBasicTxOut dummyAddr (ada 1)
+                )
+              | ix <- [0 .. 500]
+              ]
 
     balance =
         testBalanceTx
@@ -957,10 +957,10 @@ spec_balanceTx era = describe "balanceTx" $ do
     utxo coins = utxoWithValues $ map Value.inject coins
 
     dummyAddr =
-        Convert.toLedgerAddress $
-            W.Address $
-                unsafeFromHex
-                    "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
+        Convert.toLedgerAddress
+            $ W.Address
+            $ unsafeFromHex
+                "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
 
     totalOutput :: (TestRecentEra era) => Tx era -> Coin
     totalOutput tx =
@@ -1090,10 +1090,10 @@ balanceTxGoldenSpec era = describe "balance goldens" $ do
         dummyHash = B8.replicate 32 '0'
 
     addr =
-        Convert.toLedgerAddress $
-            W.Address $
-                unsafeFromHex
-                    "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
+        Convert.toLedgerAddress
+            $ W.Address
+            $ unsafeFromHex
+                "60b1e5e0fb74c86c801f646841e07cdb42df8b82ef3ce4e57cb5412e77"
 
     payment :: PartialTx era
     payment =
@@ -1210,18 +1210,18 @@ _spec_estimateSignedTxSize _era = describe "estimateSignedTxSize" $ do
     -- An address with a vk payment credential. For the test above, this is the
     -- only aspect which matters.
     vkCredAddr =
-        Convert.toLedgerAddress $
-            W.Address $
-                unsafeFromHex
-                    "6000000000000000000000000000000000000000000000000000000000"
+        Convert.toLedgerAddress
+            $ W.Address
+            $ unsafeFromHex
+                "6000000000000000000000000000000000000000000000000000000000"
 
     -- This is a short bootstrap address retrieved from
     -- "byron-address-format.md".
     bootAddr =
-        Convert.toLedgerAddress $
-            W.Address $
-                unsafeFromHex
-                    "82d818582183581cba970ad36654d8dd8f74274b733452ddeab9a62a397746be3c42ccdda0001a9026da5b"
+        Convert.toLedgerAddress
+            $ W.Address
+            $ unsafeFromHex
+                "82d818582183581cba970ad36654d8dd8f74274b733452ddeab9a62a397746be3c42ccdda0001a9026da5b"
 
     -- With more attributes, the address can be longer. This value was chosen
     -- /experimentally/ to make the tests pass. The ledger has been validating
@@ -1604,8 +1604,20 @@ prop_balanceTxValid
             prop_dijkstraContextError = \case
                 DijkstraTxInfo.ConwayContextError e ->
                     prop_conwayContextError e
+                DijkstraTxInfo.SubTxContextError _ _ ->
+                    succeedWithLabel "SubTxContextError"
                 DijkstraTxInfo.PointerPresentInOutput _ ->
                     succeedWithLabel "PointerPresentInOutput"
+                DijkstraTxInfo.UnsupportedScriptInSubTx _ _ ->
+                    succeedWithLabel "UnsupportedScriptInSubTx"
+                DijkstraTxInfo.DirectDepositsNotSupported _ ->
+                    succeedWithLabel "DirectDepositsNotSupported"
+                DijkstraTxInfo.AccountBalanceIntervalsNotSupported _ ->
+                    succeedWithLabel "AccountBalanceIntervalsNotSupported"
+                DijkstraTxInfo.GuardScriptHashesNotSupported _ ->
+                    succeedWithLabel "GuardScriptHashesNotSupported"
+                DijkstraTxInfo.RequiredTopLevelGuardsNotSupported _ ->
+                    succeedWithLabel "RequiredTopLevelGuardsNotSupported"
 
             prop_conwayContextError :: ConwayContextError era -> Property
             prop_conwayContextError = \case
@@ -1704,10 +1716,10 @@ prop_balanceTxValid
           where
             valid :: TxOut era -> Property
             valid out =
-                counterexample msg $
-                    property $
-                        not $
-                            Write.isBelowMinimumCoinForTxOut protocolParams out
+                counterexample msg
+                    $ property
+                    $ not
+                    $ Write.isBelowMinimumCoinForTxOut protocolParams out
               where
                 msg =
                     unwords
@@ -1924,9 +1936,9 @@ prop_bootstrapWitnesses _era p n net accIxW addr0IxW =
             byronProtVer
             (BSL.fromStrict $ CA.unAddress addr) of
             Right byronAddr ->
-                aaVKDerivationPath $
-                    attrData $
-                        Chain.addrAttributes byronAddr
+                aaVKDerivationPath
+                    $ attrData
+                    $ Chain.addrAttributes byronAddr
             Left _ -> Nothing
 
 --------------------------------------------------------------------------------
@@ -2140,16 +2152,16 @@ balanceTxWithDummyChangeState
         (ErrBalanceTx era)
         (Tx era, DummyChangeState)
 balanceTxWithDummyChangeState utxoAssumptions utxo seed partialTx =
-    (`evalRand` stdGenFromSeed seed) $
-        runExceptT $
-            balanceTx
-                mockPParams
-                dummyTimeTranslation
-                utxoAssumptions
-                utxoIndex
-                dummyChangeAddrGen
-                (DummyChangeState 0)
-                partialTx
+    (`evalRand` stdGenFromSeed seed)
+        $ runExceptT
+        $ balanceTx
+            mockPParams
+            dummyTimeTranslation
+            utxoAssumptions
+            utxoIndex
+            dummyChangeAddrGen
+            (DummyChangeState 0)
+            partialTx
   where
     utxoIndex = constructUTxOIndex utxo
 
@@ -2291,12 +2303,12 @@ dummyChangeAddrGen =
         :: CA.Index 'CA.Soft 'CA.PaymentK
         -> Write.Address
     addressAtIx ix =
-        Convert.toLedgerAddress $
-            convert $
-                Shelley.delegationAddress
-                    Shelley.shelleyMainnet
-                    (Shelley.PaymentFromExtendedKey paymentK)
-                    (Shelley.DelegationFromExtendedKey stakeK)
+        Convert.toLedgerAddress
+            $ convert
+            $ Shelley.delegationAddress
+                Shelley.shelleyMainnet
+                (Shelley.PaymentFromExtendedKey paymentK)
+                (Shelley.DelegationFromExtendedKey stakeK)
       where
         paymentK =
             CA.toXPub
@@ -2345,16 +2357,16 @@ dummyByronChangeAddrGen =
 
     byronAddressAtIx :: Int -> Write.Address
     byronAddressAtIx i =
-        Convert.toLedgerAddress $
-            W.Address $
-                CA.unAddress $
-                    Byron.paymentAddress
-                        Byron.byronMainnet
-                        ( CA.toXPub
-                            <$> Byron.deriveAddressPrivateKey
-                                accK
-                                (CA.unsafeMkIndex $ fromIntegral i)
-                        )
+        Convert.toLedgerAddress
+            $ W.Address
+            $ CA.unAddress
+            $ Byron.paymentAddress
+                Byron.byronMainnet
+                ( CA.toXPub
+                    <$> Byron.deriveAddressPrivateKey
+                        accK
+                        (CA.unsafeMkIndex $ fromIntegral i)
+                )
 
 dummyTimeTranslation :: TimeTranslation
 dummyTimeTranslation =
@@ -2401,13 +2413,13 @@ pingPong_1 :: (TestRecentEra era) => PartialTx era
 pingPong_1 = PartialTx tx mempty mempty (StakeKeyDepositMap mempty) mempty
   where
     tx =
-        deserializeTx $
-            unsafeFromHex $
-                mconcat
-                    [ "84a30080018183581d714d72cf569a339a18a7d9302313983f56e0d96cd4"
-                    , "5bdcb1d6512dca6a1a001e84805820923918e403bf43c34b4ef6b48eb2ee04ba"
-                    , "bed17320d8d1b9ff9ad086e86f44ec0200a10481d87980f5f6"
-                    ]
+        deserializeTx
+            $ unsafeFromHex
+            $ mconcat
+                [ "84a30080018183581d714d72cf569a339a18a7d9302313983f56e0d96cd4"
+                , "5bdcb1d6512dca6a1a001e84805820923918e403bf43c34b4ef6b48eb2ee04ba"
+                , "bed17320d8d1b9ff9ad086e86f44ec0200a10481d87980f5f6"
+                ]
 
 pingPong_2 :: (TestRecentEra era) => PartialTx era
 pingPong_2 =
@@ -2425,22 +2437,22 @@ pingPong_2 =
                 [
                     ( Write.unsafeMkTxIn tid 0
                     , TxOutInRecentEra
-                        ( Write.unsafeAddressFromBytes $
-                            unsafeFromHex $
-                                mconcat
-                                    [ "714d72cf569a339a18a7d93023139"
-                                    , "83f56e0d96cd45bdcb1d6512dca6a"
-                                    ]
+                        ( Write.unsafeAddressFromBytes
+                            $ unsafeFromHex
+                            $ mconcat
+                                [ "714d72cf569a339a18a7d93023139"
+                                , "83f56e0d96cd45bdcb1d6512dca6a"
+                                ]
                         )
                         (ada 2)
-                        ( Write.DatumHash $
-                            fromJust $
-                                Write.datumHashFromBytes $
-                                    unsafeFromHex $
-                                        mconcat
-                                            [ "923918e403bf43c34b4ef6b48eb2ee04"
-                                            , "babed17320d8d1b9ff9ad086e86f44ec"
-                                            ]
+                        ( Write.DatumHash
+                            $ fromJust
+                            $ Write.datumHashFromBytes
+                            $ unsafeFromHex
+                            $ mconcat
+                                [ "923918e403bf43c34b4ef6b48eb2ee04"
+                                , "babed17320d8d1b9ff9ad086e86f44ec"
+                                ]
                         )
                         Nothing
                     )
@@ -2475,9 +2487,9 @@ signedTxTestData = do
 
 testParameter_coinsPerUTxOByte :: Ledger.CoinPerByte
 testParameter_coinsPerUTxOByte =
-    Ledger.CoinPerByte $
-        Ledger.compactCoinOrError $
-            Coin 4_310
+    Ledger.CoinPerByte
+        $ Ledger.compactCoinOrError
+        $ Coin 4_310
 
 testStdGenSeed :: StdGenSeed
 testStdGenSeed = StdGenSeed 0
@@ -2854,17 +2866,17 @@ genStakePoolKeyHash = genKeyHash'
 genByronAddr :: Gen Addr
 genByronAddr = do
     ix <- choose @Int (0, 1024)
-    pure $
-        Convert.toLedgerAddress $
-            W.Address $
-                CA.unAddress $
-                    Byron.paymentAddress
-                        Byron.byronMainnet
-                        ( CA.toXPub
-                            <$> Byron.deriveAddressPrivateKey
-                                accK
-                                (CA.unsafeMkIndex $ fromIntegral ix)
-                        )
+    pure
+        $ Convert.toLedgerAddress
+        $ W.Address
+        $ CA.unAddress
+        $ Byron.paymentAddress
+            Byron.byronMainnet
+            ( CA.toXPub
+                <$> Byron.deriveAddressPrivateKey
+                    accK
+                    (CA.unsafeMkIndex $ fromIntegral ix)
+            )
   where
     rootK = Byron.genMasterKeyFromMnemonic dummyMnemonic
     accK = Byron.deriveAccountPrivateKey rootK minBound
@@ -2972,15 +2984,15 @@ instance Buildable UTxOAssumptions where
 instance Buildable AnyChangeAddressGenWithState where
     build (AnyChangeAddressGenWithState (ChangeAddressGen g maxLengthAddr) s0) =
         blockListF
-            [ nameF "changeAddr0" $
-                build $
-                    show $
-                        fst $
-                            g s0
-            , nameF "max address length" $
-                build $
-                    BS.length $
-                        serialiseAddr maxLengthAddr
+            [ nameF "changeAddr0"
+                $ build
+                $ show
+                $ fst
+                $ g s0
+            , nameF "max address length"
+                $ build
+                $ BS.length
+                $ serialiseAddr maxLengthAddr
             ]
 
 -- CSV with the columns: wallet_balance,(fee,minfee | error)
