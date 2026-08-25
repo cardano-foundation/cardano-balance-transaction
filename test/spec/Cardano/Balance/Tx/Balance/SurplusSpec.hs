@@ -37,6 +37,7 @@ import Data.Maybe
 import Data.Monoid.Monus
     ( Monus ((<\>))
     )
+import Prelude
 import Test.Hspec
     ( Spec
     , describe
@@ -67,7 +68,6 @@ import Test.QuickCheck.Extra
     ( report
     , shrinkNatural
     )
-import Prelude
 
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive as W.Coin
@@ -175,13 +175,13 @@ spec = do
                 & property
 
     describe "distributeSurplusDelta" $ do
-        describe "when increasing change increases fee" $
-            it "will increase fee (99 lovelace for change, 1 for fee)" $
-                distributeSurplusDelta
-                    (FeePerByte 1)
-                    (W.Coin 100)
-                    (TxFeeAndChange (W.Coin 200) [W.Coin 200])
-                    `shouldBe` Right (TxFeeAndChange (W.Coin 1) [W.Coin 99])
+        describe "when increasing change increases fee"
+            $ it "will increase fee (99 lovelace for change, 1 for fee)"
+            $ distributeSurplusDelta
+                (FeePerByte 1)
+                (W.Coin 100)
+                (TxFeeAndChange (W.Coin 200) [W.Coin 200])
+                `shouldBe` Right (TxFeeAndChange (W.Coin 1) [W.Coin 99])
 
         describe "when increasing fee increases fee" $
             it "will increase fee (98 lovelace for change, 2 for fee)" $
@@ -372,11 +372,11 @@ prop_distributeSurplus_onSuccess_increasesValuesByDelta =
          (TxFeeAndChange feeOriginal changeOriginal)
          (TxFeeAndChange feeModified changeModified) ->
                 let (TxFeeAndChange feeDelta changeDeltas) =
-                        either (error . show) id $
-                            distributeSurplusDelta policy surplus $
-                                TxFeeAndChange
-                                    (feeOriginal)
-                                    (W.TxOut.coin <$> changeOriginal)
+                        either (error . show) id
+                            $ distributeSurplusDelta policy surplus
+                            $ TxFeeAndChange
+                                (feeOriginal)
+                                (W.TxOut.coin <$> changeOriginal)
                 in  ( TxFeeAndChange
                         (feeModified <\> feeDelta)
                         (zipWith W.TxOut.subtractCoin changeDeltas changeModified)

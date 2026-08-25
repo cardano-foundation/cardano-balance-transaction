@@ -45,7 +45,8 @@ import Cardano.Ledger.Alonzo.TxWits
     ( AlonzoTxWits
     )
 import Cardano.Ledger.Alonzo.UTxO
-    ( AlonzoScriptsNeeded
+    ( AlonzoEraUTxO
+    , AlonzoScriptsNeeded
     )
 import Cardano.Ledger.Api
     ( ConwayEra
@@ -196,6 +197,7 @@ type RecentEraConstraints era =
     , Babbage.BabbageEraTxBody era
     , Alonzo.AlonzoEraTxBody era
     , Shelley.EraUTxO era
+    , AlonzoEraUTxO era
     , Core.EraTxCert era
     , Show (Core.TxOut era)
     , Show (Core.PParams era)

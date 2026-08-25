@@ -180,9 +180,9 @@ fromLedgerTokenBundle (MaryValue ledgerAda (MultiAsset ledgerTokens)) =
     TokenBundle (fromLedgerCoin ledgerAda) walletTokenMap
   where
     walletTokenMap =
-        CS.TokenMap.fromFlatList $
-            concatMap expandPolicy $
-                Map.toList ledgerTokens
+        CS.TokenMap.fromFlatList
+            $ concatMap expandPolicy
+            $ Map.toList ledgerTokens
 
     expandPolicy
         :: (Ledger.PolicyID, Map.Map Ledger.AssetName Integer)
@@ -210,10 +210,10 @@ toLedgerTxIn (W.TxIn tid ix) =
     Ledger.TxIn (toLedgerTxId tid) (toEnum $ intCast ix)
   where
     toLedgerTxId h =
-        Ledger.TxId $
-            Hashes.unsafeMakeSafeHash $
-                Crypto.UnsafeHash $
-                    SBS.toShort h
+        Ledger.TxId
+            $ Hashes.unsafeMakeSafeHash
+            $ Crypto.UnsafeHash
+            $ SBS.toShort h
 
 -- | Convert from a ledger 'TxIn'.
 fromLedgerTxIn :: Ledger.TxIn -> W.TxIn
@@ -293,30 +293,30 @@ fromDijkstraTxOut (BabbageTxOut addr val _ _) =
 -- | Convert to a Conway-era ledger 'UTxO'.
 toLedgerUTxOConway :: W.UTxO -> UTxO ConwayEra
 toLedgerUTxOConway (W.UTxO m) =
-    UTxO $
-        Map.mapKeys toLedgerTxIn $
-            Map.map toConwayTxOut m
+    UTxO
+        $ Map.mapKeys toLedgerTxIn
+        $ Map.map toConwayTxOut m
 
 -- | Convert to a Dijkstra-era ledger 'UTxO'.
 toLedgerUTxODijkstra :: W.UTxO -> UTxO DijkstraEra
 toLedgerUTxODijkstra (W.UTxO m) =
-    UTxO $
-        Map.mapKeys toLedgerTxIn $
-            Map.map toDijkstraTxOut m
+    UTxO
+        $ Map.mapKeys toLedgerTxIn
+        $ Map.map toDijkstraTxOut m
 
 -- | Convert from a Conway-era ledger 'UTxO'.
 fromLedgerUTxOConway :: UTxO ConwayEra -> W.UTxO
 fromLedgerUTxOConway (UTxO m) =
-    W.UTxO $
-        Map.mapKeys fromLedgerTxIn $
-            Map.map fromConwayTxOut m
+    W.UTxO
+        $ Map.mapKeys fromLedgerTxIn
+        $ Map.map fromConwayTxOut m
 
 -- | Convert from a Dijkstra-era ledger 'UTxO'.
 fromLedgerUTxODijkstra :: UTxO DijkstraEra -> W.UTxO
 fromLedgerUTxODijkstra (UTxO m) =
-    W.UTxO $
-        Map.mapKeys fromLedgerTxIn $
-            Map.map fromDijkstraTxOut m
+    W.UTxO
+        $ Map.mapKeys fromLedgerTxIn
+        $ Map.map fromDijkstraTxOut m
 
 --------------------------------------------------------------------------------
 -- PolicyId / AssetName
@@ -364,13 +364,13 @@ toLedgerTimelockScript = \case
             Nothing ->
                 error "toLedgerTimelockScript: invalid key hash"
     CA.RequireAllOf contents ->
-        Scripts.mkRequireAllOfTimelock $
-            StrictSeq.fromList $
-                map toLedgerTimelockScript contents
+        Scripts.mkRequireAllOfTimelock
+            $ StrictSeq.fromList
+            $ map toLedgerTimelockScript contents
     CA.RequireAnyOf contents ->
-        Scripts.mkRequireAnyOfTimelock $
-            StrictSeq.fromList $
-                map toLedgerTimelockScript contents
+        Scripts.mkRequireAnyOfTimelock
+            $ StrictSeq.fromList
+            $ map toLedgerTimelockScript contents
     CA.RequireSomeOf num contents ->
         Scripts.mkRequireMOfTimelock
             (intCast num)
@@ -407,17 +407,17 @@ toWalletScript tokeyrole tl
         let payload = Crypto.hashToBytes h
         in  CA.RequireSignatureOf (CA.KeyHash (tokeyrole payload) payload)
     | Just contents <- Scripts.getRequireAllOfTimelock tl =
-        CA.RequireAllOf $
-            map (toWalletScript tokeyrole) $
-                F.toList contents
+        CA.RequireAllOf
+            $ map (toWalletScript tokeyrole)
+            $ F.toList contents
     | Just contents <- Scripts.getRequireAnyOfTimelock tl =
-        CA.RequireAnyOf $
-            map (toWalletScript tokeyrole) $
-                F.toList contents
+        CA.RequireAnyOf
+            $ map (toWalletScript tokeyrole)
+            $ F.toList contents
     | Just (num, contents) <- Scripts.getRequireMOfTimelock tl =
-        CA.RequireSomeOf (fromIntegral num) $
-            map (toWalletScript tokeyrole) $
-                F.toList contents
+        CA.RequireSomeOf (fromIntegral num)
+            $ map (toWalletScript tokeyrole)
+            $ F.toList contents
     | Scripts.RequireTimeExpire (SlotNo slot) <- tl =
         CA.ActiveUntilSlot $ fromIntegral slot
     | Scripts.RequireTimeStart (SlotNo slot) <- tl =

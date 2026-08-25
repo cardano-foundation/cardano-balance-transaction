@@ -49,6 +49,7 @@ import Control.Monad
 import Data.List
     ( transpose
     )
+import Prelude
 import Test.QuickCheck
     ( Gen
     , Positive (..)
@@ -56,7 +57,6 @@ import Test.QuickCheck
     , frequency
     , suchThat
     )
-import Prelude
 
 import qualified Cardano.Balance.Tx.TxWithUTxO as TxWithUTxO
 import qualified Data.Map.Strict as Map

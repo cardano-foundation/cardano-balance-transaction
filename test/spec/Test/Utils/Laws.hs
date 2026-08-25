@@ -16,6 +16,7 @@ import Data.Typeable
     ( Typeable
     , typeRep
     )
+import Prelude
 import Test.Hspec
     ( Spec
     , describe
@@ -27,7 +28,6 @@ import Test.QuickCheck
 import Test.QuickCheck.Classes
     ( Laws (..)
     )
-import Prelude
 
 -- | Test multiple sets of laws for a type.
 testLawsMany

@@ -7,11 +7,11 @@ module Test.Hspec.Extra
     )
 where
 
+import Prelude
 import Test.Hspec
     ( Spec
     , hspec
     )
-import Prelude
 
 import qualified Test.Hspec as Hspec
 

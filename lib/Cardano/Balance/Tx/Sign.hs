@@ -204,19 +204,19 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
     Withdrawals wdrlMap =
         txBody ^. withdrawalsTxBodyL
     nKeyWithdrawals =
-        length $
-            filter isKeyHashWithdrawal $
-                Map.keys wdrlMap
+        length
+            $ filter isKeyHashWithdrawal
+            $ Map.keys wdrlMap
     certs = F.toList (txBody ^. certsTxBodyL)
     nCertWits =
         sumVia estimateDelegSigningKeys certs
     nonInputWits =
-        numberOfShelleyWitnesses $
-            fromIntegral $
-                nExtraKeyWits
-                    + nKeyWithdrawals
-                    + fromIntegral nCertWits
-                    + fromIntegral timelockTotalWitCount
+        numberOfShelleyWitnesses
+            $ fromIntegral
+            $ nExtraKeyWits
+                + nKeyWithdrawals
+                + fromIntegral nCertWits
+                + fromIntegral timelockTotalWitCount
     inputWits =
         KeyWitnessCounts
             { nKeyWits =
@@ -239,19 +239,19 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
 
     timelockTotalWitCount :: Natural
     timelockTotalWitCount =
-        sum $
-            Map.elems $
-                Map.unionWith
-                    (\_est spec -> spec) -- Allow specified values to override
-                    upperBoundEstimatedTimelockKeyWitnessCounts
-                    specifiedTimelockKeyWitnessCounts
+        sum
+            $ Map.elems
+            $ Map.unionWith
+                (\_est spec -> spec) -- Allow specified values to override
+                upperBoundEstimatedTimelockKeyWitnessCounts
+                specifiedTimelockKeyWitnessCounts
       where
         specifiedTimelockKeyWitnessCounts
             :: Map (ScriptHash) Natural
         specifiedTimelockKeyWitnessCounts =
-            Map.fromList $
-                mapMaybe resolve $
-                    F.toList scriptsNeeded
+            Map.fromList
+                $ mapMaybe resolve
+                $ F.toList scriptsNeeded
           where
             resolve
                 :: (ScriptHash)
@@ -278,9 +278,9 @@ estimateKeyWitnessCounts utxo tx timelockKeyWitCounts =
 
         scriptsNeeded :: Set (ScriptHash)
         scriptsNeeded =
-            getScriptsHashesNeeded $
-                getScriptsNeeded utxo $
-                    view bodyTxL tx
+            getScriptsHashesNeeded
+                $ getScriptsNeeded utxo
+                $ view bodyTxL tx
 
         scriptsAvailableInBody :: Map (ScriptHash) (Script era)
         scriptsAvailableInBody = tx ^. witsTxL . scriptTxWitsL

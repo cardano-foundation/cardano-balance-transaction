@@ -59,6 +59,7 @@ import Data.Word
     ( Word16
     , Word64
     )
+import Prelude
 import Test.Cardano.Ledger.Alonzo.Arbitrary
     (
     )
@@ -96,7 +97,6 @@ import Test.QuickCheck.Classes
 import Test.Utils.Laws
     ( testLawsMany
     )
-import Prelude
 
 import qualified Cardano.Crypto.Hash.Class as Crypto
 import qualified Cardano.Ledger.Coin as Ledger

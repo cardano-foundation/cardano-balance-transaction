@@ -278,9 +278,9 @@ assignScriptRedeemers pparams timeTranslation utxo redeemers tx = do
             , Set.null langViews =
                 SNothing
             | otherwise =
-                SJust $
-                    Alonzo.hashScriptIntegrity $
-                        Alonzo.ScriptIntegrity rdmrs dats langViews
+                SJust
+                    $ Alonzo.hashScriptIntegrity
+                    $ Alonzo.ScriptIntegrity rdmrs dats langViews
 
 --
 -- The 'Redeemer' type
@@ -344,8 +344,8 @@ mkRewardingPurpose
     => AsItem Word32 RewardAccount
     -> Alonzo.PlutusPurpose AsItem era
 mkRewardingPurpose = case recentEra @era of
-    RecentEraConway -> Conway.ConwayRewarding
-    RecentEraDijkstra -> Dijkstra.DijkstraRewarding
+    RecentEraConway -> Conway.ConwayWithdrawing
+    RecentEraDijkstra -> Dijkstra.DijkstraWithdrawing
 
 --------------------------------------------------------------------------------
 -- Utils

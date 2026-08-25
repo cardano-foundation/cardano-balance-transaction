@@ -1,0 +1,19 @@
+# Tasks — cardano-balance-transaction#45
+
+Slice **S1** (OWNER).
+
+- [x] **T001** `cabal.project` index-states + freeze constraint
+      table. Old 11.0.1 values gone. `allow-newer` untouched unless
+      the solver requires a recorded exception.
+- [x] **T002** Resolve and pin `cardano-ledger-alonzo-test` and
+      `cardano-ledger-shelley-ma-test` at the new index-state.
+      Record landed versions.
+- [x] **T003** `.cabal` freeze-lower / next-minor-upper.
+- [x] **T004** `flake.nix` indexState; `flake.lock` CHaP
+      `c0770200…`; hackage snapshot `1d6c4337…` if Cabal-7159.
+- [x] **T005** Mechanical Haskell adaptation. Report dijkstra
+      0.3.0.0 surface. Hunt unpinned seed-like values.
+- [x] **T006** fourmolu + hlint on touched Haskell.
+- [x] **T007** `nix build .#lib .#unit-tests` and
+      `nix run .#unit-tests` (Q1). Confirm coin-selection SRP needs
+      no bump (or report).

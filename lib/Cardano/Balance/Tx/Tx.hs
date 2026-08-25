@@ -158,9 +158,6 @@ import Cardano.Ledger.Coin
 import Cardano.Ledger.Compactible
     ( fromCompact
     )
-import Cardano.Ledger.Conway.PParams
-    ( ppDRepDepositL
-    )
 import Cardano.Ledger.Conway.Scripts
     ( PlutusScript (..)
     )
@@ -516,9 +513,9 @@ forceUTxOToEra
     => UTxO era1
     -> Either ErrInvalidTxOutInEra (UTxO era2)
 forceUTxOToEra (UTxO utxo) =
-    utxoFromTxOutsInRecentEra $
-        map (second wrapTxOutInRecentEra) $
-            Map.toList utxo
+    utxoFromTxOutsInRecentEra
+        $ map (second wrapTxOutInRecentEra)
+        $ Map.toList utxo
 
 --------------------------------------------------------------------------------
 -- Tx
@@ -650,18 +647,8 @@ evaluateTransactionBalance pp depositLookup =
     Ledger.evalBalanceTxBody
         pp
         depositLookup
-        dRepDepositAssumeCurrent
         assumePoolIsReg
   where
-    -- Deposit lookup for `UnRegDRep` certificates in the TxBody
-    --
-    -- TODO [ADP-3404] Query actual value of deposit
-    --
-    -- https://cardanofoundation.atlassian.net/browse/ADP-3404
-    dRepDepositAssumeCurrent _drepCred = case recentEra @era of
-        RecentEraConway -> Just $ pp ^. ppDRepDepositL
-        RecentEraDijkstra -> Just $ pp ^. ppDRepDepositL
-
     -- Checks whether a pool with a supplied 'PoolStakeId' is already
     -- registered.
     --

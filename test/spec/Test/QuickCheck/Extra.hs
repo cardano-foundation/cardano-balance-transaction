@@ -57,6 +57,7 @@ import Generics.SOP
 import Numeric.Natural
     ( Natural
     )
+import Prelude
 import Test.QuickCheck
     ( Gen
     , Property
@@ -67,7 +68,6 @@ import Test.QuickCheck
     , shrinkList
     , shrinkMapBy
     )
-import Prelude
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map

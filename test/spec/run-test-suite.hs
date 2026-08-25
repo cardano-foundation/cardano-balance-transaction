@@ -1,9 +1,9 @@
 module Main where
 
+import Prelude
 import Test.Hspec.Extra
     ( hspecMain
     )
-import Prelude
 
 import qualified Spec
 
