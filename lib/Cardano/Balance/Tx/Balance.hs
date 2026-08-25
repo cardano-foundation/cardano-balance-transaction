@@ -258,10 +258,10 @@ import GHC.Generics
 import Numeric.Natural
     ( Natural
     )
+import Prelude
 import Text.Pretty.Simple
     ( pShow
     )
-import Prelude
 
 import qualified Cardano.Address.KeyHash as CA
 import qualified Cardano.Address.Script as CA
@@ -438,10 +438,10 @@ instance (IsRecentEra era) => Buildable (PartialTx era) where
                     (blockListF' "-" inF (Map.toList (unUTxO extraUTxO)))
                 , nameF "redeemers" (pretty redeemers)
                 , nameF "tx" (txF tx)
-                , nameF "intended timelock key witness counts" $
-                    blockListF' "-" (build . show) $
-                        Map.toList $
-                            getTimelockKeyWitnessCounts timelockKeyWitnessCounts
+                , nameF "intended timelock key witness counts"
+                    $ blockListF' "-" (build . show)
+                    $ Map.toList
+                    $ getTimelockKeyWitnessCounts timelockKeyWitnessCounts
                 ]
       where
         inF = build . show
@@ -503,10 +503,10 @@ constructUTxOIndex availableUTxO =
     UTxOIndex{availableUTxO, availableUTxOIndex}
   where
     availableUTxOIndex =
-        UTxOIndex.fromMap $
-            Map.map toCSTokenBundle $
-                toInternalUTxOMap $
-                    toWalletUTxO availableUTxO
+        UTxOIndex.fromMap
+            $ Map.map toCSTokenBundle
+            $ toInternalUTxOMap
+            $ toWalletUTxO availableUTxO
 
 fromWalletUTxO
     :: forall era
@@ -873,12 +873,12 @@ balanceTxInner
                     | c >= 0 ->
                         pure $ W.Coin.unsafeFromIntegral c
                     | otherwise ->
-                        throwE $
-                            ErrBalanceTxInternalError $
-                                ErrUnderestimatedFee
-                                    (Coin (-c))
-                                    candidateTx
-                                    witCount
+                        throwE
+                            $ ErrBalanceTxInternalError
+                            $ ErrUnderestimatedFee
+                                (Coin (-c))
+                                candidateTx
+                                witCount
 
             let feeAndChange =
                     TxFeeAndChange
@@ -931,9 +931,9 @@ balanceTxInner
             if bal == mempty
                 then pure tx
                 else
-                    throwE $
-                        ErrBalanceTxInternalError $
-                            ErrFailedBalancing bal
+                    throwE
+                        $ ErrBalanceTxInternalError
+                        $ ErrFailedBalancing bal
 
         txBalance :: Tx era -> Value
         txBalance =
@@ -1358,9 +1358,9 @@ updateTx tx extraContent = do
     toLedgerScript s = \case
         RecentEraConway -> NativeScript $ Convert.toLedgerTimelockScript s
         RecentEraDijkstra ->
-            NativeScript $
-                DijkstraScripts.upgradeTimelock $
-                    Convert.toLedgerTimelockScript s
+            NativeScript
+                $ DijkstraScripts.upgradeTimelock
+                $ Convert.toLedgerTimelockScript s
 
 modifyShelleyTxBody
     :: forall era

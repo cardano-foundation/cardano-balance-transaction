@@ -7,11 +7,11 @@ module Test.Utils.Pretty
     )
 where
 
+import Prelude
 import Test.QuickCheck
     ( Property
     , (===)
     )
-import Prelude
 
 import qualified Text.Show.Pretty as P
 

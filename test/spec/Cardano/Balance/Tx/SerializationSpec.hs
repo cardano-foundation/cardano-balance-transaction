@@ -29,6 +29,7 @@ import Data.List
     ( isSuffixOf
     , sortOn
     )
+import Prelude
 import System.Directory
     ( listDirectory
     )
@@ -50,7 +51,6 @@ import Test.Utils.Paths
 import Text.Read
     ( readMaybe
     )
-import Prelude
 
 import qualified Data.ByteString as BS
 

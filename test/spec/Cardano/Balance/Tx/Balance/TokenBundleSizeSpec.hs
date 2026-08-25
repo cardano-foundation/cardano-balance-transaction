@@ -47,6 +47,7 @@ import Data.Monoid.Monus
 import Data.Word
     ( Word32
     )
+import Prelude
 import Test.Hspec
     ( Spec
     , describe
@@ -67,7 +68,6 @@ import Test.QuickCheck
     , (===)
     , (==>)
     )
-import Prelude
 
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive.Gen as W
@@ -140,13 +140,13 @@ unit_assessTokenBundleSize_fixedSizeBundle
     assessor
     expectedMinLengthBytes
     expectedMaxLengthBytes =
-        withMaxSuccess 100 $
-            counterexample counterexampleText $
-                conjoin . fmap property $
-                    [ actualAssessment == expectedAssessment
-                    , actualLengthBytes >= expectedMinLengthBytes
-                    , actualLengthBytes <= expectedMaxLengthBytes
-                    ]
+        withMaxSuccess 100
+            $ counterexample counterexampleText
+            $ conjoin . fmap property
+            $ [ actualAssessment == expectedAssessment
+              , actualLengthBytes >= expectedMinLengthBytes
+              , actualLengthBytes <= expectedMaxLengthBytes
+              ]
       where
         actualAssessment = assessWalletTokenBundleSize assessor bundle
         v = eraProtVerLow @Dijkstra

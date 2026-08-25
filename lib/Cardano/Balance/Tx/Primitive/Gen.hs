@@ -78,6 +78,7 @@ import Data.Word
 import Numeric.Natural
     ( Natural
     )
+import Prelude
 import Test.QuickCheck
     ( Gen
     , arbitrary
@@ -91,7 +92,6 @@ import Test.QuickCheck
     , sized
     , vectorOf
     )
-import Prelude
 
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Data.ByteString as BS

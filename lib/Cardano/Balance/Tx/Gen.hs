@@ -79,6 +79,7 @@ import Data.Maybe
 import Data.Ratio
     ( (%)
     )
+import Prelude
 import Test.QuickCheck
     ( Gen
     , arbitrary
@@ -87,7 +88,6 @@ import Test.QuickCheck
 import Unsafe.Coerce
     ( unsafeCoerce
     )
-import Prelude
 
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map

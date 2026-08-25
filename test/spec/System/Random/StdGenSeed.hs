@@ -60,11 +60,11 @@ stdGenSeed :: (MonadRandom m) => m StdGenSeed
 stdGenSeed = do
     hi <- getRandom
     lo <- getRandom
-    pure $
-        StdGenSeed $
-            (.|.)
-                (fromIntegral @Word64 @Word127 hi `Bits.shiftL` 63)
-                (fromIntegral @Word64 @Word127 lo)
+    pure
+        $ StdGenSeed
+        $ (.|.)
+            (fromIntegral @Word64 @Word127 hi `Bits.shiftL` 63)
+            (fromIntegral @Word64 @Word127 lo)
 
 stdGenFromSeed :: StdGenSeed -> StdGen
 stdGenFromSeed =

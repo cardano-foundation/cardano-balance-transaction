@@ -21,6 +21,7 @@ import Generics.SOP
     ( NP (..)
     )
 import qualified Generics.SOP as SOP
+import Prelude
 import Test.Hspec
     ( Spec
     , describe
@@ -50,7 +51,6 @@ import Test.QuickCheck.Extra
 import Test.Utils.Pretty
     ( (====)
     )
-import Prelude
 
 import qualified Cardano.Balance.Tx.Primitive as W
 import qualified Cardano.Balance.Tx.Primitive.Gen as W
