@@ -18,7 +18,7 @@ index-state: 2026-08-14T13:38:07Z
 
 index-state:
   , hackage.haskell.org 2026-08-14T13:38:07Z
-  , cardano-haskell-packages 2026-08-17T11:39:16Z
+  , cardano-haskell-packages 2026-09-03T10:20:53Z
 
 packages:
   .
@@ -69,13 +69,13 @@ constraints:
   , cardano-ledger-core ==1.21.0.0
   , cardano-ledger-dijkstra ==0.3.0.0
   , cardano-ledger-mary ==1.11.0.0
-  , cardano-ledger-shelley ==1.19.0.0
+  , cardano-ledger-shelley ==1.19.0.1
   , cardano-ledger-shelley-ma-test ==1.4.0.2
   , cardano-protocol-tpraos ==1.6.0.0
   , cardano-slotting ==0.2.1.0
   , cardano-strict-containers ==0.1.6.0
   , openapi3 >= 3.2.0
-  , ouroboros-consensus ==4.1.0.0
+  , ouroboros-consensus ==4.2.1.0
 
 package cardano-coin-selection
   tests: False
