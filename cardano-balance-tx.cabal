@@ -63,6 +63,7 @@ library
   import:          language, opts-lib
   hs-source-dirs:  lib
   build-depends:
+    , aeson                      >=2.2      && <2.3
     , base                       >=4.14     && <5
     , bytestring                 >=0.10.6   && <0.13
     , cardano-addresses          >=4.0.8    && <4.1
@@ -131,6 +132,7 @@ test-suite unit
     , cardano-balance-tx
     , cardano-binary
     , cardano-coin-selection
+    , cardano-crypto
     , cardano-crypto-class
     , cardano-crypto-wrapper
     , cardano-ledger-alonzo
