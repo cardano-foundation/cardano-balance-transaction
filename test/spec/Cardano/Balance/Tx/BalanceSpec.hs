@@ -47,8 +47,12 @@ import Cardano.Ledger.Address
     ( Addr (..)
     )
 import Cardano.Ledger.Alonzo.Plutus.TxInfo
-    ( AlonzoContextError (..)
+    ( AlonzoContextError
+        ( TimeTranslationPastHorizon
+        , TranslationLogicMissingInput
+        )
     )
+import qualified Cardano.Ledger.Alonzo.Plutus.TxInfo as Alonzo
 import Cardano.Ledger.Api
     ( AllegraEraTxBody (..)
     , AlonzoEraTxBody (..)
@@ -413,6 +417,7 @@ import Text.Read
     )
 
 import qualified Cardano.Address as CA
+import qualified Cardano.Address.Crypto.Wallet as CAW
 import qualified Cardano.Address.Derivation as CA
 import qualified Cardano.Address.Style.Byron as Byron
 import qualified Cardano.Address.Style.Shelley as Shelley
@@ -425,6 +430,7 @@ import qualified Cardano.Balance.Tx.TxWithUTxO.Gen as TxWithUTxO
 import qualified Cardano.CoinSelection.Types.TokenBundle as W.TokenBundle
 import qualified Cardano.Crypto as CC
 import qualified Cardano.Crypto.Hash.Class as Crypto
+import qualified Cardano.Crypto.Wallet as CW
 import qualified Cardano.Ledger.Coin as Ledger
 import qualified Cardano.Ledger.Conway.Core as Ledger
 import qualified Cardano.Ledger.Val as Value
@@ -1588,6 +1594,12 @@ prop_balanceTxValid
                     succeedWithLabel "TranslationLogicMissingInput"
                 AlonzoContextError (TimeTranslationPastHorizon _) ->
                     succeedWithLabel "TimeTranslationPastHorizon"
+                AlonzoContextError (Alonzo.CertificateNotSupported _) ->
+                    succeedWithLabel "CertificateNotSupported"
+                AlonzoContextError (Alonzo.PlutusPurposeNotSupported _) ->
+                    succeedWithLabel "PlutusPurposeNotSupported"
+                AlonzoContextError (Alonzo.ImpossibleContextError _) ->
+                    succeedWithLabel "ImpossibleContextError"
                 ByronTxOutInContext _ ->
                     succeedWithLabel "ByronTxOutInContext"
                 RedeemerPointerPointsToNothing _ ->
@@ -1618,14 +1630,12 @@ prop_balanceTxValid
                     succeedWithLabel "GuardScriptHashesNotSupported"
                 DijkstraTxInfo.RequiredTopLevelGuardsNotSupported _ ->
                     succeedWithLabel "RequiredTopLevelGuardsNotSupported"
+                DijkstraTxInfo.ScriptHashNotFoundForPurpose _ ->
+                    succeedWithLabel "ScriptHashNotFoundForPurpose"
 
             prop_conwayContextError :: ConwayContextError era -> Property
             prop_conwayContextError = \case
                 BabbageContextError e -> prop_babbageContextError e
-                CertificateNotSupported _ ->
-                    succeedWithLabel "CertificateNotSupported"
-                PlutusPurposeNotSupported _ ->
-                    succeedWithLabel "PlutusPurposeNotSupported"
                 CurrentTreasuryFieldNotSupported _ ->
                     succeedWithLabel "CurrentTreasuryFieldNotSupported"
                 VotingProceduresFieldNotSupported _ ->
@@ -1636,6 +1646,11 @@ prop_balanceTxValid
                     succeedWithLabel "TreasuryDonationFieldNotSupported"
                 ReferenceInputsNotDisjointFromInputs _ ->
                     succeedWithLabel "ReferenceInputsNotDisjointFromInputs"
+                -- CertificateNotSupported and PlutusPurposeNotSupported are
+                -- not exported by cardano-ledger-conway 1.24; the ledger
+                -- reports them through AlonzoContextError.
+                _ ->
+                    succeedWithLabel "UnexportedConwayContextError"
 
         succeedWithLabel l = label l $ property True
 
@@ -1918,7 +1933,11 @@ prop_bootstrapWitnesses _era p n net accIxW addr0IxW =
         makeBootstrapWitness txHash signingKey addrAttr
       where
         txHash = Crypto.castHash $ Crypto.hashWith serialize' body
-        signingKey = CC.SigningKey xprv
+        signingKey =
+            CC.SigningKey
+                . either error id
+                . CW.xprv
+                $ CAW.unXPrv xprv
         addrAttr =
             mkAttributes $
                 AddrAttributes
@@ -2389,10 +2408,13 @@ dummyTimeTranslationWithHorizon horizon =
             (RelativeTime $ fromIntegral $ slotLength * (unSlotNo horizon))
             horizon
             (Slotting.EpochNo 1)
-            (HF.boundPerasRound HF.initBound)
+            (HF.boundNextPerasRound HF.initBound)
 
     era1Params =
-        HF.defaultEraParams (SecurityParam (unsafeNonZero 2)) (mkSlotLength 1)
+        HF.defaultEraParams
+            (SecurityParam (unsafeNonZero 2))
+            (mkSlotLength 1)
+            HF.NoPerasEnabled
     summary =
         HF.summaryWithExactly
             (exactlyOne (HF.EraSummary t0 (HF.EraEnd t1) era1Params))

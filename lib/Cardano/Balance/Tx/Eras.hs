@@ -58,6 +58,10 @@ import Cardano.Ledger.Api.UTxO
 import Cardano.Ledger.Mary
     ( MaryValue
     )
+import Data.Aeson
+    ( FromJSON
+    , ToJSON
+    )
 import Data.Function
     ( on
     )
@@ -210,6 +214,12 @@ type RecentEraConstraints era =
       -- All recent eras (Conway, Dijkstra) have this instance.
       EqRaw (Core.NativeScript era)
     , SafeToHash (Core.NativeScript era)
+    , -- Since cardano-ledger-core 1.22, EraTxWits has ToJSON, FromJSON and
+      -- NFData superclasses. With 'Core.TxWits era ~ AlonzoTxWits era' GHC
+      -- needs the instance for the redeemer pointers, which is not entailed
+      -- by any class above.
+      FromJSON (Alonzo.PlutusPurpose Alonzo.AsIx era)
+    , ToJSON (Alonzo.PlutusPurpose Alonzo.AsIx era)
     )
 
 instance IsRecentEra Conway where
