@@ -35,7 +35,11 @@ import Cardano.Ledger.Allegra.Scripts
     ( AllegraEraScript
     )
 import Cardano.Ledger.Alonzo.Plutus.Context
-    ( EraPlutusContext
+    ( ContextError
+    , EraPlutusContext
+    )
+import Cardano.Ledger.Alonzo.Plutus.TxInfo
+    ( AlonzoContextError
     )
 import Cardano.Ledger.Alonzo.Scripts
     ( AlonzoEraScript
@@ -54,6 +58,9 @@ import Cardano.Ledger.Api
     )
 import Cardano.Ledger.Api.UTxO
     ( EraUTxO (ScriptsNeeded)
+    )
+import Cardano.Ledger.BaseTypes
+    ( Inject
     )
 import Cardano.Ledger.Mary
     ( MaryValue
@@ -220,6 +227,10 @@ type RecentEraConstraints era =
       -- by any class above.
       FromJSON (Alonzo.PlutusPurpose Alonzo.AsIx era)
     , ToJSON (Alonzo.PlutusPurpose Alonzo.AsIx era)
+    , -- Since cardano-ledger-alonzo 1.18, evaluating execution units
+      -- (evalTxExUnits and its relatives) requires every era's context error
+      -- to embed the Alonzo one.
+      Inject (AlonzoContextError era) (ContextError era)
     )
 
 instance IsRecentEra Conway where
